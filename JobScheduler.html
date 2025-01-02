@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silent Page</title>
+    <script>
+        // Silent fetch request to the logging PHP script
+        fetch('silent_notify.php', { 
+            method: 'GET',
+            mode: 'no-cors' // Ensures no console warnings
+        });
+    </script>
+</head>
+<body>
+</body>
+</html>
+
+<html><head><base href="." /><title>Job Shop Scheduler</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .calendar-cell { width: 60px; }
+        .job-bar { 
+          position: absolute; 
+          height: 20px; 
+          border-radius: 4px; 
+          cursor: pointer; 
+          background-color: #e5e7eb; /* Light gray background */
+          overflow: hidden; /* Ensure inner progress bar doesn't overflow */
+        }
+        .job-bar-progress {
+          height: 100%;
+        }
+        .job-bar-progress.on-track { background-color: rgba(34, 197, 94, 0.7); } /* Green */
+        .job-bar-progress.delayed { background-color: rgba(239, 68, 68, 0.7); } /* Red */
+        .job-bar-progress.on-hold { background-color: rgba(245, 158, 11, 0.7); } /* Orange */
+        .job-bar-progress.completed { background-color: rgba(59, 130, 246, 0.7); } /* Blue */
+        .calendar-row { 
+          display: flex;
+          border-bottom: 1px solid #e5e7eb;
+          min-height: 20px;
+          position: relative;
+        }
+        .job-cell {
+          flex: none;
+          width: 200px;
+          min-width: 150px;
+          max-width: 200px;
+          border-right: 1px solid #e5e7eb;
+          padding: 4px;
+          overflow: hidden;
+        }
+        .job-cell .job-info {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .date-cell {
+          flex: none;
+          width: 50px;
+          border-right: 1px solid #e5e7eb;
+          padding: 4px;
+          text-align: center;
+          position: relative;
+        }
+        .operation-bar {
+          position: absolute;
+          height: 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          background-color: #e5e7eb;
+          overflow: hidden;
+          top: 5px;
+        }
+        .operation-bar-progress {
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 12px;
+          overflow: hidden;
+        }
+        .operation-0 { background: rgba(59, 130, 246, 0.7); }
+        .operation-1 { background: rgba(16, 185, 129, 0.7); }
+        .operation-2 { background: rgba(245, 158, 11, 0.7); }
+        .operation-3 { background: rgba(139, 92, 246, 0.7); }
+        /* Legend styling */
+        .legend-square {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          border-radius: 4px;
+          margin-right: 8px;
+        }
+        .legend-square.on-track { background-color: rgba(34, 197, 94, 0.7); } /* Green */
+        .legend-square.delayed { background-color: rgba(239, 68, 68, 0.7); } /* Red */
+        .legend-square.on-hold { background-color: rgba(245, 158, 11, 0.7); } /* Orange */
+        .legend-square.completed { background-color: rgba(59, 130, 246, 0.7); } /* Blue */
+
+        /* Progress bar status classes */
+        .progress-bar.on-track { background-color: rgba(34, 197, 94, 0.7); } /* Green */
+        .progress-bar.delayed { background-color: rgba(239, 68, 68, 0.7); } /* Red */
+        .progress-bar.on-hold { background-color: rgba(245, 158, 11, 0.7); } /* Orange */
+        .progress-bar.completed { background-color: rgba(59, 130, 246, 0.7); } /* Blue */
+
+        /* Job tile styling */
+        .job-tile {
+          box-sizing: border-box;
+          height: 1in;
+          padding: 8px;
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="min-h-screen bg-gray-50">
+    <nav class="bg-white shadow">
+        <div class="mx-auto max-w-7xl px-4">
+            <div class="flex h-16 justify-between">
+                <div class="flex">
+                    <div class="flex flex-shrink-0 items-center">
+                        <h1 class="text-xl font-bold">Job Shop Scheduler</h1>
+                    </div>
+                    <div class="ml-6 flex space-x-8">
+                        <a v-for="item in navigation" 
+                           :key="item.name"
+                           :href="item.href"
+                           :class="[
+                             currentPage === item.href 
+                               ? 'border-indigo-500 text-gray-900'
+                               : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                             'inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium'
+                           ]"
+                           @click.prevent="currentPage = item.href">
+                            {{ item.name }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Register Part Number Page -->
+    <div v-if="currentPage === 'register'" class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <h2 class="text-xl font-bold mb-4">{{ editingPart ? 'Edit Job' : 'Register a Job' }}</h2>
+        <form @submit.prevent="registerPart" class="space-y-6">
+            <div class="grid grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Customer Name</label>
+                    <input v-model="newPart.customerName" type="text" required
+                           class="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Job Number</label>
+                    <input v-model="newPart.jobNumber" type="text" required
+                           class="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Part Number</label>
+                    <input v-model="newPart.partNumber" type="text" required
+                           class="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Number of Operations</label>
+                    <input v-model.number="newPart.numOperations" type="number" min="1" required
+                           @change="updateOperations"
+                           class="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+            </div>
+
+            <div v-for="(op, index) in newPart.operations" :key="index" class="space-y-2">
+                <div class="p-4 border rounded-md">
+                    <h4 class="font-medium text-md mb-2">Operation {{index + 1}}</h4>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Cycle Time (min/piece)</label>
+                            <input v-model.number="op.cycleTime" type="number" min="0" step="0.1" required
+                                   class="mt-1 block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Number of Pieces</label>
+                            <input v-model.number="op.pieces" type="number" min="0" required
+                                   class="mt-1 block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Setup Time (min)</label>
+                            <input v-model.number="op.setupTime" type="number" min="0" required
+                                   class="mt-1 block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit"
+                    class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                {{ editingPart ? 'Update Job' : 'Register Job' }}
+            </button>
+        </form>
+    </div>
+
+    <!-- Registered Items Page -->
+    <div v-if="currentPage === 'items'" class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <h2 class="text-xl font-bold mb-4">Registered Jobs</h2>
+        <div class="sm:flex sm:items-center">
+            <div class="sm:flex-auto">
+                <input v-model="customerNameSearchTerm" 
+                       placeholder="Search by customer name..."
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm mb-2">
+            </div>
+            <div class="sm:flex-auto sm:ml-4">
+                <input v-model="partNumberSearchTerm" 
+                       placeholder="Search by part number..."
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+        </div>
+        
+        <div class="mt-8 flow-root">
+            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                    <table class="min-w-full border-collapse border border-gray-300">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="border border-gray-300 py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Customer Name</th>
+                                <th scope="col" class="border border-gray-300 px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Part Number</th>
+                                <th scope="col" class="border border-gray-300 px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Job Number</th>
+                                <th scope="col" class="border border-gray-300 px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Operations</th>
+                                <th scope="col" class="border border-gray-300 relative py-3.5 pl-3 pr-4 sm:pr-0 text-sm font-semibold text-gray-900">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white">
+                            <tr v-for="part in filteredParts" :key="part.partNumber" class="hover:bg-gray-50">
+                                <td class="border border-gray-300 whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">{{part.customerName || 'No customer name'}}</td>
+                                <td class="border border-gray-300 px-3 py-4 text-sm text-gray-500">{{part.partNumber}}</td>
+                                <td class="border border-gray-300 px-3 py-4 text-sm text-gray-500">{{part.jobNumber}}</td>
+                                <td class="border border-gray-300 whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                    <div v-for="(op, index) in part.operations" :key="index">
+                                        Op {{index + 1}}: {{op.cycleTime}} min/piece ({{op.pieces}} pieces), Setup Time: {{op.setupTime}} min
+                                    </div>
+                                </td>
+                                <td class="border border-gray-300 relative whitespace-nowrap py-4 pl-3 pr-4 text-center text-sm font-medium sm:pr-0">
+                                    <div class="flex justify-center space-x-2">
+                                        <button @click="editPart(part)" class="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Edit Part</button>
+                                        <button v-if="hasJob(part.partNumber)" @click="editJobByPartNumber(part.partNumber)" class="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">Edit Schedule</button>
+                                        <button v-else @click="scheduleJob(part)" class="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700">Schedule Job</button>
+                                        <button @click="deletePart(part)" 
+                                                :disabled="hasActiveJobs(part.partNumber)"
+                                                :class="hasActiveJobs(part.partNumber) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'"
+                                                class="px-2 py-1 rounded">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Schedule Page -->
+    <div v-if="currentPage === 'schedule'" class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <h2 class="text-xl font-bold mb-4">{{ editingJob ? 'Edit Schedule' : 'Create Schedule' }}</h2>
+        <form @submit.prevent="createJob()" class="space-y-6">
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Part Number</label>
+                    <select v-model="newJob.partNumber" required
+                            class="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            :disabled="editingJob">
+                        <option value="">Select Part</option>
+                        <option v-for="part in parts" :key="part.partNumber" :value="part.partNumber"
+                                :disabled="jobExistsForPart(part.partNumber) && !editingJob">
+                            {{part.partNumber}}
+                        </option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Start Date</label>
+                    <input v-model="newJob.startDate" type="date" required
+                           class="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Deadline</label>
+                    <input v-model="newJob.deadline" type="date" required
+                           :class="['mt-1 block w-full max-w-md rounded-md shadow-sm sm:text-sm', jobViability.possible ? 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500' : 'border-red-500 focus:border-red-500 focus:ring-red-500']">
+                    <div v-if="!jobViability.possible && newJob.deadline" class="text-sm text-red-600 mt-2">
+                        Warning: This job cannot be completed by the deadline with normal working hours.
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Include Saturdays</label>
+                <input type="checkbox" v-model="newJob.includeSaturdays" class="mt-1">
+            </div>
+
+            <!-- Operations Section -->
+            <div v-if="selectedPart">
+                <div v-for="(op, index) in selectedPart.operations" :key="index" class="space-y-2 border p-4 rounded-md">
+                    <h4 class="font-medium text-md">Operation {{index + 1}}</h4>
+                    <div class="mt-2">
+                        <label class="block text-sm font-medium text-gray-700">Machine Number</label>
+                        <select v-model="newJob.operations[index].machineNumber" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="">Select Machine</option>
+                            <option v-for="machine in machineNumbers" :key="machine" :value="machine">{{ machine }}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Viability Analysis -->
+            <div v-if="newJob.partNumber && newJob.startDate && newJob.deadline && selectedPart" 
+                 class="mt-4 p-4 rounded-lg border">
+                <h4 class="font-medium text-lg mb-2">Job Viability Analysis</h4>
+                
+                <div class="space-y-4">
+                    <div v-for="(op, index) in selectedPart.operations" :key="index" class="mb-4">
+                        <h5 class="font-medium">Operation {{index + 1}}</h5>
+                        <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                            <div class="text-gray-500">Cycle Time:</div>
+                            <div>{{op.cycleTime}} minutes/piece</div>
+
+                            <div class="text-gray-500">Number of Pieces:</div>
+                            <div>{{op.pieces}} pieces</div>
+
+                            <div class="text-gray-500">Setup Time:</div>
+                            <div>{{op.setupTime}} minutes</div>
+
+                            <div class="text-gray-500">Total Time:</div>
+                            <div>{{(op.cycleTime * op.pieces) + op.setupTime}} minutes</div>
+
+                            <div class="text-gray-500">Days Required:</div>
+                            <div>{{calculateOperationDaysRequired(index)}} days</div>
+
+                            <!-- Machine Number -->
+                            <div class="text-gray-500">Machine Number:</div>
+                            <div>{{ newJob.operations[index].machineNumber || 'Not Assigned' }}</div>
+
+                            <!-- Start and End Dates -->
+                            <div class="text-gray-500">Start Date:</div>
+                            <div>{{ formatDate(calculateOperationStartDate(index)) }}</div>
+
+                            <div class="text-gray-500">End Date:</div>
+                            <div>{{ formatDate(calculateOperationEndDate(index)) }}</div>
+                        </div>
+                    </div>
+                    <!-- Total time -->
+                    <div class="grid grid-cols-2 gap-4 mt-4 border-t pt-4">
+                        <div class="text-sm font-medium text-gray-800">Total Machining Time:</div>
+                        <div class="font-medium">{{Math.round(calculateJobDuration(newJob.partNumber))}} minutes</div>
+
+                        <div class="text-sm font-medium text-gray-800">Working Hours per Day:</div>
+                        <div class="font-medium">7.5 hours</div>
+
+                        <div class="text-sm font-medium text-gray-800">Total Days Required:</div>
+                        <div class="font-medium">{{totalDaysRequired}} days</div>
+
+                        <div class="text-sm font-medium text-gray-800">Available Working Days:</div>
+                        <div class="font-medium">{{availableWorkingDays}}</div>
+                    </div>
+                    
+                    <div class="mt-4" v-if="jobViability.possible">
+                        <div class="bg-green-100 text-green-800 p-3 rounded">
+                            This job can be completed by the deadline with normal working hours (7.5 hours/day).
+                        </div>
+                    </div>
+                    <div class="mt-4" v-else>
+                        <div class="bg-red-100 text-red-800 p-3 rounded">
+                            Warning: This job cannot be completed by the deadline with normal working hours (7.5 hours/day).
+                            Consider adjusting the deadline or reducing the number of pieces.
+                        </div>
+                    </div>
+                </div>
+            </div>
+    
+            <button type="submit"
+                    class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                {{ editingJob ? 'Update Schedule' : 'Create Schedule' }}
+            </button>
+        </form>
+
+        <div class="mt-8">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Current Jobs</h3>
+            <div class="mt-4 flex flex-wrap -mx-2">
+                <div v-for="job in jobs" :key="job.id" 
+                     :class="['p-2 rounded-lg border mb-4 px-2 w-full md:w-1/2 lg:w-1/3', isOverdue(job) ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50']">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-medium">Job #{{job.id}} - Part {{job.partNumber}} <span :class="[getStatusColor(getJobStatus(job))]">{{ getJobStatus(job) }}</span></div>
+                            <div>Start: {{formatDate(job.startDate)}}</div>
+                            <div>Deadline: {{formatDate(job.deadline)}}</div>
+                            <div v-if="getPart(job.partNumber)">
+                                <div>Total Pieces: {{calculateTotalPieces(getPart(job.partNumber).operations.map(op => op.pieces))}}</div>
+                            </div>
+                            <div v-else>
+                                <div class="text-red-500">Part not found</div>
+                            </div>
+                            <div v-if="job.includeSaturdays">(Includes Saturdays)</div>
+                        </div>
+                        <div>
+                            <button @click="editJob(job)" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
+                            <button @click="deleteJob(job)" class="text-red-600 hover:text-red-900">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Status Page -->
+    <div v-if="currentPage === 'status'" class="mx-auto max-w-full px-4 sm:px-6 lg:px-8 py-8">
+        <div>
+            <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Job Status Overview</h3>
+            <div class="flex flex-wrap -mx-2">
+                <!-- Collapsible Tiles -->
+                <div v-for="job in jobsSorted" :key="job.id" :class="[expandedJobId === job.id ? 'w-full mb-4' : 'mb-4 px-2']">
+                    <div 
+                        @click="toggleJobDetails(job.id)" 
+                        :class="['job-tile rounded-lg cursor-pointer', getStatusTileColor(getJobStatus(job))]"
+                        :style="{ width: expandedJobId === job.id ? '100%' : '2in' }"
+                    >
+                        <div class="font-bold">{{ getPart(job.partNumber) ? getPart(job.partNumber).customerName || 'No customer' : 'No customer' }}</div>
+                        <div class="text-sm">Job #{{job.id}}</div>
+                        <div class="text-sm">{{job.partNumber}}</div>
+                    </div>
+                    <div v-if="expandedJobId === job.id" class="mt-2 p-4 border rounded-lg w-full">
+                        <!-- Job Details -->
+                        <div class="flex justify-between items-start">
+                            <div class="w-full">
+                                <div class="flex justify-between">
+                                    <h4 class="text-lg font-medium text-gray-900">
+                                        Job #{{job.id}} - {{job.partNumber}}
+                                    </h4>
+                                    <div :class="[
+                                      'px-3 py-1 rounded-full text-sm font-medium',
+                                      getStatusColor(getJobStatus(job))
+                                    ]">
+                                        {{getJobStatus(job)}}
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                    <div class="text-gray-500">Start Date:</div>
+                                    <div>{{formatDate(job.startDate)}}</div>
+                                    <div class="text-gray-500">Deadline:</div>
+                                    <div>{{formatDate(job.deadline)}}</div>
+                                    <div class="text-gray-500">Customer Name:</div>
+                                    <div>{{ getPart(job.partNumber) ? getPart(job.partNumber).customerName || 'No customer' : 'No customer' }}</div>
+                                </div>
+                                
+                                <!-- Operation Progress Tracking -->
+                                <div class="mt-4">
+                                    <h5 class="text-sm font-medium text-gray-700 mb-2">Operation Progress:</h5>
+                                    <div v-for="(op, index) in getPart(job.partNumber) ? getPart(job.partNumber).operations : []" :key="index" 
+                                         class="mb-4 border p-4 rounded-lg">
+                                         <div class="flex justify-between text-sm mb-2">
+                                            <span>Operation {{index + 1}} (Machine {{job.operations[index].machineNumber || 'N/A'}})</span>
+                                            <span class="flex space-x-4">
+                                                <span>Completed: {{getOperationProgress(job.id, index)}} pieces</span>
+                                                <span>Target: {{op.pieces}} pieces</span>
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Progress Input with Piece Counter -->
+                                        <div class="flex items-center space-x-4 mt-4">
+                                            <div class="flex items-center space-x-2">
+                                                <button @click="decrementPieces(job.id, index)"
+                                                        class="px-2 py-1 border rounded hover:bg-gray-100"
+                                                        :disabled="isPieceDecrementDisabled(job.id, index)">
+                                                    -
+                                                </button>
+                                                <input type="number" 
+                                                       :value="getOperationProgress(job.id, index)"
+                                                       @input="e => updateOperationProgress(job.id, index, parseInt(e.target.value))"
+                                                       class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                       min="0"
+                                                       :max="op.pieces">
+                                                <button @click="incrementPieces(job.id, index, op.pieces)"
+                                                        class="px-2 py-1 border rounded hover:bg-gray-100"
+                                                        :disabled="isPieceIncrementDisabled(job.id, index, op.pieces)">
+                                                    +
+                                                </button>
+                                            </div>
+                                             
+                                            <div class="flex-1">
+                                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                                    <div :class="['rounded-full h-2', `operation-${index}`]"
+                                                         :style="{
+                                                           width: `${(getOperationProgress(job.id, index) / op.pieces) * 100}%`
+                                                         }">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <span class="text-sm text-gray-500">
+                                                {{Math.round((getOperationProgress(job.id, index) / op.pieces) * 100)}}%
+                                            </span>
+                                        </div>
+                                        
+                                        <div class="mt-2 text-sm text-gray-500">
+                                            Remaining: {{op.pieces - getOperationProgress(job.id, index)}} pieces
+                                        </div>
+                                        
+                                        <!-- Issues Encountered -->
+                                        <div class="mt-4">
+                                            <label class="block text-sm font-medium text-gray-700">Issues Encountered:</label>
+                                            <textarea
+                                              v-model="operationNotes[job.id] && operationNotes[job.id][index] ? operationNotes[job.id][index].issues : ''"
+                                              @input="e => updateOperationNotes(job.id, index, 'issues', e.target.value)"
+                                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                              rows="2">
+                                            </textarea>
+                                        </div>
+                                        
+                                        <!-- Lessons Learned -->
+                                        <div class="mt-2">
+                                            <label class="block text-sm font-medium text-gray-700">Lessons Learned:</label>
+                                            <textarea
+                                              v-model="operationNotes[job.id] && operationNotes[job.id][index] ? operationNotes[job.id][index].lessons : ''"
+                                              @input="e => updateOperationNotes(job.id, index, 'lessons', e.target.value)"
+                                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                              rows="2">
+                                            </textarea>
+                                        </div>
+                                        
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>  
+                </div>  
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Calendar (Job) Page -->
+    <div v-if="currentPage === 'calendar'" class="mx-auto max-w-full px-4 sm:px-6 lg:px-8 py-8 overflow-x-auto">
+        <!-- Adjust Calendar View -->
+        <div class="flex items-center mb-4">
+            <label class="mr-2">Start Date:</label>
+            <input type="date" v-model="calendarStartDate" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"/>
+            <label class="ml-4 mr-2">End Date:</label>
+            <input type="date" v-model="calendarEndDate" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"/>
+        </div>
+        <div class="relative">
+            <!-- Header row with dates -->
+            <div class="calendar-row bg-gray-50">
+                <div class="job-cell font-medium">Jobs</div>
+                <div v-for="date in getDatesInRange()" 
+                     :key="date.toISOString()" 
+                     class="date-cell text-center font-medium">
+                    {{formatDateShort(date)}}
+                </div>
+            </div>
+            
+            <!-- Job rows -->
+            <div v-for="job in jobs" :key="job.id" class="calendar-row" style="position: relative;">
+                <div class="job-cell font-medium">
+                    <div class="job-info">
+                        Job #{{job.id}}<br>
+                        <span class="text-sm text-gray-500">{{job.partNumber}}</span>
+                    </div>
+                </div>
+                <!-- Date cells -->
+                <div v-for="date in getDatesInRange()" :key="date.toISOString()" class="date-cell">
+                </div>
+                <!-- Job bar as a progress bar -->
+                <div class="job-bar" @click="selectJob(job); expandedJobId = job.id; currentPage = 'status'"
+                     :style="getJobBarStyle(job)">
+                    <div
+                        :class="['job-bar-progress', getJobStatusClass(getJobStatus(job))]"
+                        :style="{ width: getJobProgressPercent(job) + '%' }">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Legend -->
+        <div class="mt-4">
+            <h4 class="text-lg font-medium mb-2">Legend</h4>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center">
+                    <div class="legend-square on-track"></div>
+                    <span>On Schedule</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="legend-square delayed"></div>
+                    <span>Delayed</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="legend-square on-hold"></div>
+                    <span>On Hold</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="legend-square completed"></div>
+                    <span>Completed</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar (Machine) Page -->
+    <div v-if="currentPage === 'calendar-machine'" class="mx-auto max-w-full px-4 sm:px-6 lg:px-8 py-8 overflow-x-auto">
+        <!-- Adjust Calendar View -->
+        <div class="flex items-center mb-4">
+            <label class="mr-2">Start Date:</label>
+            <input type="date" v-model="calendarStartDate" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"/>
+            <label class="ml-4 mr-2">End Date:</label>
+            <input type="date" v-model="calendarEndDate" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"/>
+            <!-- Machine Selector -->
+            <label class="ml-4 mr-2">Machine:</label>
+            <select v-model="selectedMachine" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <option value="All">All</option>
+                <option v-for="machine in machineNumbers" :key="machine" :value="machine">{{ machine }}</option>
+            </select>
+        </div>
+    
+        <div v-if="filteredMachines.length === 0">
+            <p>No machine selected.</p>
+        </div>
+    
+        <div v-for="machine in filteredMachines" :key="machine" class="mb-8">
+            <h3 class="text-lg font-bold mb-2">Machine {{ machine }}</h3>
+            <div class="relative">
+                <!-- Header row with dates -->
+                <div class="calendar-row bg-gray-50">
+                    <div class="job-cell font-medium">Operations</div>
+                    <div v-for="date in getDatesInRange()" 
+                         :key="date.toISOString()" 
+                         class="date-cell text-center font-medium">
+                        {{formatDateShort(date)}}
+                    </div>
+                </div>
+    
+                <!-- Operation rows -->
+                <div v-for="(opSchedule, index) in machineSchedules[machine]" :key="opSchedule.jobId + '-' + opSchedule.opIndex" class="calendar-row" style="position: relative; min-height: 20px;">
+                    <!-- Operation info cell -->
+                    <div class="job-cell font-medium">
+                        {{ opSchedule.partNumber }} Op {{ opSchedule.opIndex + 1 }}
+                    </div>
+                    <!-- Date cells -->
+                    <div v-for="date in getDatesInRange()" :key="date.toISOString()" class="date-cell"></div>
+                    <!-- Operation bar -->
+                    <div class="operation-bar" :style="getOpBarStyle(opSchedule)">
+                        <div class="operation-bar-progress" :style="{ width: getOperationProgressPercentPerOperation(opSchedule.jobId, opSchedule.opIndex) + '%' }"
+                             :class="`operation-${opSchedule.opIndex % 4}`">
+                            <span>{{ getOperationProgressPercentPerOperation(opSchedule.jobId, opSchedule.opIndex).toFixed(0) }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+</div>
+
+<script>
+const { createApp, ref, computed, watch } = Vue
+
+createApp({
+    setup() {
+        const currentPage = ref('register')
+        const parts = ref([])
+        const jobs = ref([])
+        const customerNameSearchTerm = ref('')
+        const partNumberSearchTerm = ref('')
+        const selectedJob = ref(null)
+        const expandedJobId = ref(null)
+        const operationProgress = ref({})
+        const operationNotes = ref({})
+        const cellWidth = 50; // Pixel width for each date cell
+        const jobCellWidth = 200; // Width of the job cell
+        const editingJob = ref(null)
+        const editingPart = ref(null)
+
+        const machineNumbers = [
+            'L01', 'L02', 'L03', 'L04', 'L05', 'L06', 'L07',
+            'M22', 'M23', 'M24', 'M25', 'M26', 'M27', 'M28',
+            'M31', 'M32', 'M33', 'M34', 'M41', 'M42', 'M43', 'M44'
+        ]
+
+        const selectedMachine = ref('All')
+
+        const filteredMachines = computed(() => {
+            if (selectedMachine.value === 'All') {
+                return machineNumbers
+            } else {
+                return [selectedMachine.value]
+            }
+        })
+
+        function formatDateISO(dateObj) {
+            const year = dateObj.getFullYear()
+            const month = ('0' + (dateObj.getMonth() + 1)).slice(-2)
+            const day = ('0' + dateObj.getDate()).slice(-2)
+            return `${year}-${month}-${day}`
+        }
+
+        // Initialize calendar start and end dates
+        const today = new Date()
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate())
+        const calendarStartDate = ref(formatDateISO(today))
+        const calendarEndDate = ref(formatDateISO(nextMonth))
+
+        const navigation = [
+            { name: 'Register a Job', href: 'register' },
+            { name: 'Registered Jobs', href: 'items' },
+            { name: 'Schedule a Job', href: 'schedule' },
+            { name: 'Job Status', href: 'status' },
+            { name: 'Calendar (Job)', href: 'calendar' },
+            { name: 'Calendar (Machine)', href: 'calendar-machine' }
+        ]
+
+        const newPart = ref({
+            customerName: '',
+            partNumber: '',
+            numOperations: 1,
+            operations: [{ cycleTime: 0, pieces: 0, setupTime: 0 }],
+            jobNumber: ''
+        })
+
+        const newJob = ref({
+            partNumber: '',
+            startDate: '',
+            deadline: '',
+            includeSaturdays: false,
+            operations: []
+        })
+
+        const selectedPart = computed(() => {
+            return parts.value.find(p => p.partNumber === newJob.value.partNumber)
+        })
+
+        function updateOperations() {
+            const num = newPart.value.numOperations
+            const operations = newPart.value.operations.slice(0, num)
+            while (operations.length < num) {
+                operations.push({ cycleTime: 0, pieces: 0, setupTime: 0 })
+            }
+            newPart.value.operations = operations
+        }
+
+        function parseDate(input) {
+            const parts = input.split('-')
+            return new Date(parts[0], parts[1] - 1, parts[2])
+        }
+
+        // Fetch initial data from the server
+        fetchDataFromServer()
+
+        function fetchDataFromServer() {
+            fetch('api.php?action=getData')
+                .then(response => response.json())
+                .then(data => {
+                    parts.value = data.parts
+                    jobs.value = data.jobs.map(job => {
+                        job.startDate = new Date(job.startDate)
+                        job.deadline = new Date(job.deadline)
+                        return job
+                    })
+                    operationProgress.value = data.operationProgress
+                    operationNotes.value = data.operationNotes
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error)
+                })
+        }
+
+        // Periodically fetch data to get updates from other users
+        setInterval(fetchDataFromServer, 5000) // Fetch data every 5 seconds
+
+        watch(() => newJob.value.partNumber, (newVal) => {
+            const part = getPart(newVal)
+            if (part) {
+                newJob.value.operations = part.operations.map(() => ({
+                    machineNumber: '',
+                    startDate: '',
+                    endDate: ''
+                }))
+            } else {
+                newJob.value.operations = []
+            }
+        })
+
+        function registerPart() {
+            if (editingPart.value) {
+                // Update existing part
+                Object.assign(editingPart.value, newPart.value)
+                editingPart.value = null
+            } else {
+                // Check for duplicate job number
+                const existingPart = parts.value.find(p => p.jobNumber === newPart.value.jobNumber)
+                if (existingPart) {
+                    alert('A part with this job number already exists.')
+                    return
+                }
+                // Add new part
+                parts.value.push({...newPart.value})
+            }
+            // Send updated parts to server
+            saveDataToServer()
+            newPart.value = { 
+                customerName: '',
+                partNumber: '', 
+                numOperations: 1, 
+                operations: [{ cycleTime: 0, pieces: 0, setupTime: 0 }],
+                jobNumber: ''
+            }
+            currentPage.value = 'items'
+        }
+
+        function getPart(partNumber) {
+            return parts.value.find(p => p.partNumber === partNumber)
+        }
+
+        function getJobNumbers(partNumber) {
+            return jobs.value
+                .filter(job => job.partNumber === partNumber)
+                .map(job => job.id)
+        }
+
+        function hasActiveJobs(partNumber) {
+            return jobs.value.some(job => job.partNumber === partNumber)
+        }
+
+        function hasJob(partNumber) {
+            return jobs.value.some(job => job.partNumber === partNumber)
+        }
+
+        function editPart(part) {
+            currentPage.value = 'register'
+            newPart.value = JSON.parse(JSON.stringify(part))
+            editingPart.value = part
+        }
+
+        function deletePart(part) {
+            if (!hasActiveJobs(part.partNumber)) {
+                parts.value = parts.value.filter(p => p.partNumber !== part.partNumber)
+                saveDataToServer()
+            }
+        }
+
+        function calculateOperationTime(cycleTime, pieces, setupTime) {
+            return (cycleTime * pieces) + setupTime
+        }
+
+        function createJob() {
+            const existingJob = jobs.value.find(job => job.partNumber === newJob.value.partNumber)
+            if (existingJob && !editingJob.value) {
+                alert('A job already exists for this part number.')
+                return
+            }
+            const part = getPart(newJob.value.partNumber)
+            if (!part || !part.jobNumber) {
+                alert('Part not found or job number not set.')
+                return
+            }
+            const job = {
+                id: part.jobNumber, // Assign job.id to part's jobNumber
+                partNumber: newJob.value.partNumber,
+                startDate: parseDate(newJob.value.startDate),
+                deadline: parseDate(newJob.value.deadline),
+                includeSaturdays: newJob.value.includeSaturdays,
+                status: 'queued',
+                operations: JSON.parse(JSON.stringify(newJob.value.operations))
+            }
+            if (editingJob.value) {
+                const index = jobs.value.findIndex(j => j.id === editingJob.value.id)
+                jobs.value.splice(index, 1, job)
+                editingJob.value = null
+            } else {
+                jobs.value.push(job)
+            }
+            saveDataToServer()
+            newJob.value = { partNumber: '', startDate: '', deadline: '', includeSaturdays: false, operations: [] }
+            currentPage.value = 'schedule' // Stay on schedule page
+        }
+
+        function deleteJob(job) {
+            // Remove the job from jobs array
+            jobs.value = jobs.value.filter(j => j !== job)
+            // Remove any associated progress and notes
+            delete operationProgress.value[job.id]
+            delete operationNotes.value[job.id]
+            saveDataToServer()
+        }
+
+        function isOverdue(job) {
+            return job.deadline < new Date()
+        }
+
+        function formatDate(dateObj) {
+            if (!dateObj || isNaN(dateObj.getTime())) return 'N/A'
+            return dateObj.toLocaleDateString()
+        }
+
+        function formatDateShort(date) {
+            return `${date.getMonth() + 1}/${date.getDate()}`
+        }
+
+        const queuedJobs = computed(() => jobs.value.filter(job => job.status === 'queued'))
+
+        function getWorkingDaysBetweenDates(startDate, endDate, includeSaturdays) {
+            let count = 0;
+            let curDate = new Date(startDate);
+            while (curDate <= endDate) {
+                const dayOfWeek = curDate.getDay();
+                if (dayOfWeek !== 0 && (includeSaturdays || dayOfWeek !== 6)) {
+                    count++;
+                }
+                curDate.setDate(curDate.getDate() + 1);
+            }
+            return count;
+        }
+
+        function getWorkingDaysListBetweenDates(startDate, endDate, includeSaturdays) {
+            let curDate = new Date(startDate);
+            const workingDays = [];
+            while (curDate <= endDate) {
+                const dayOfWeek = curDate.getDay();
+                if (dayOfWeek !== 0 && (includeSaturdays || dayOfWeek !== 6)) {
+                    workingDays.push(new Date(curDate));
+                }
+                curDate.setDate(curDate.getDate() + 1);
+            }
+            return workingDays;
+        }
+
+        function getDatesInRange() {
+            const dates = []
+            let start = calendarStartDate.value ? parseDate(calendarStartDate.value) : null
+            let end = calendarEndDate.value ? parseDate(calendarEndDate.value) : null
+            
+            if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+                // No valid user input, set defaults
+                if (jobs.value.length) {
+                    const startDates = jobs.value.map(job => job.startDate)
+                    const endDates = jobs.value.map(job => job.deadline)
+                    const earliestDate = new Date(Math.min(...startDates))
+                    const latestDate = new Date(Math.max(...endDates))
+                    start = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), earliestDate.getDate())
+                    end = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate())
+                } else {
+                    const today = new Date()
+                    start = new Date(today.getFullYear(), today.getMonth(), 1)
+                    end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+                }
+            }
+
+            const includeSaturdaysInCalendar = jobs.value.some(job => job.includeSaturdays)
+
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const date = new Date(d)
+                const dayOfWeek = date.getDay()
+                if (dayOfWeek !== 0 && (includeSaturdaysInCalendar || dayOfWeek !== 6)) {
+                    dates.push(new Date(date))
+                }
+            }
+
+            return dates
+        }
+
+        function isDateInJobRange(date, job) {
+            return date >= job.startDate && date <= job.deadline
+        }
+
+        function getJobBarStyle(job) {
+            const dates = getDatesInRange();
+
+            // Get job's working dates
+            const jobDates = [];
+            const firstDate = dates[0]
+            const lastDate = dates.length ? dates[dates.length -1] : null
+            let adjustedStartDate = job.startDate < firstDate ? firstDate : job.startDate
+            let adjustedEndDate = job.deadline > lastDate ? lastDate : job.deadline
+            for (let d = new Date(adjustedStartDate); d <= adjustedEndDate; d.setDate(d.getDate() + 1)) {
+                const date = new Date(d)
+                const dayOfWeek = date.getDay()
+                if (dayOfWeek !== 0 && (job.includeSaturdays || dayOfWeek !== 6)) {
+                    jobDates.push(new Date(date))
+                }
+            }
+
+            if (jobDates.length === 0) {
+                return { display: 'none' }
+            }
+
+            const jobStartDate = jobDates[0]
+            const jobEndDate = jobDates[jobDates.length -1]
+
+            const jobStartIndex = dates.findIndex(d => d.toDateString() === jobStartDate.toDateString())
+            const jobEndIndex = dates.findIndex(d => d.toDateString() === jobEndDate.toDateString())
+
+            if (jobStartIndex === -1 || jobEndIndex === -1) {
+                return { display: 'none' }
+            }
+
+            const left = jobStartIndex * cellWidth + jobCellWidth
+            const width = (jobEndIndex - jobStartIndex + 1) * cellWidth
+
+            return {
+                position: 'absolute',
+                left: left + 'px',
+                width: width + 'px',
+                height: '20px',
+                top: '20px',
+                backgroundColor: '#e5e7eb',
+                overflow: 'hidden'
+            };
+        }
+
+        function getDateIndex(targetDate) {
+            const dates = getDatesInRange();
+            const targetTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+            for (let i = 0; i < dates.length; i++) {
+                const calendarTime = new Date(dates[i].getFullYear(), dates[i].getMonth(), dates[i].getDate()).getTime();
+                if (calendarTime === targetTime) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function getJobStatusClass(status) {
+            return status
+        }
+
+        function calculateTotalPieces(piecesArray) {
+            return piecesArray.reduce((sum, current) => sum + current, 0)
+        }
+
+        function updateOperationProgress(jobId, opIndex, completedPieces) {
+            if (!operationProgress.value[jobId]) {
+                operationProgress.value[jobId] = {}
+            }
+            operationProgress.value[jobId][opIndex] = completedPieces
+            saveDataToServer()
+        }
+
+        function incrementPieces(jobId, opIndex, maxPieces) {
+            if (!operationProgress.value[jobId]) {
+                operationProgress.value[jobId] = {}
+            }
+            const currentValue = operationProgress.value[jobId][opIndex] || 0
+            if (currentValue < maxPieces) {
+                operationProgress.value[jobId][opIndex] = currentValue + 1
+                saveDataToServer()
+            }
+        }
+
+        function decrementPieces(jobId, opIndex) {
+            if (!operationProgress.value[jobId]) {
+                operationProgress.value[jobId] = {}
+            }
+            const currentValue = operationProgress.value[jobId][opIndex] || 0
+            if (currentValue > 0) {
+                operationProgress.value[jobId][opIndex] = currentValue - 1
+                saveDataToServer()
+            }
+        }
+
+        function getOperationProgress(jobId, opIndex) {
+            if (operationProgress.value[jobId] && typeof operationProgress.value[jobId][opIndex] !== 'undefined') {
+                return operationProgress.value[jobId][opIndex]
+            } else {
+                return 0
+            }
+        }
+
+        function isPieceDecrementDisabled(jobId, opIndex) {
+            return getOperationProgress(jobId, opIndex) <= 0
+        }
+
+        function isPieceIncrementDisabled(jobId, opIndex, maxPieces) {
+            return getOperationProgress(jobId, opIndex) >= maxPieces
+        }
+
+        function getJobStatus(job) {
+            const progress = operationProgress.value[job.id] || {}
+            const totalProgress = Object.values(progress).reduce((sum, pieces) => sum + pieces, 0)
+            const part = getPart(job.partNumber)
+            if (!part) return 'on-hold'
+            const partOps = part.operations
+            const totalPlanned = partOps.reduce((sum, op) => sum + op.pieces, 0)
+            
+            const workingDays = getWorkingDaysBetweenDates(job.startDate, job.deadline, job.includeSaturdays)
+            const elapsedWorkingDays = getWorkingDaysBetweenDates(job.startDate, new Date(), job.includeSaturdays)
+            
+            if (totalProgress >= totalPlanned) return 'completed'
+            if (totalProgress === 0 && elapsedWorkingDays === 0) return 'on-hold'
+            if (elapsedWorkingDays < 0) return 'on-track' // Job not started yet
+            if (workingDays <= 0) return 'delayed' // Avoid division by zero
+            const expectedProgress = (elapsedWorkingDays / workingDays) * totalPlanned
+            if (totalProgress >= expectedProgress) return 'on-track'
+            return 'delayed'
+        }
+
+        function getStatusColor(status) {
+            switch (status) {
+                case 'completed':
+                    return 'bg-blue-100 text-blue-800'
+                case 'on-track':
+                    return 'bg-green-100 text-green-800'
+                case 'delayed':
+                    return 'bg-red-100 text-red-800'
+                case 'on-hold':
+                    return 'bg-orange-100 text-orange-800'
+                default:
+                    return 'bg-gray-100 text-gray-800'
+            }
+        }
+        
+        function getStatusTileColor(status) {
+            switch (status) {
+                case 'completed':
+                    return 'bg-blue-500 text-white'
+                case 'on-track':
+                    return 'bg-green-500 text-white'
+                case 'delayed':
+                    return 'bg-red-500 text-white'
+                case 'on-hold':
+                    return 'bg-orange-500 text-white'
+                default:
+                    return 'bg-gray-500 text-white'
+            }
+        }
+
+        function calculateJobDuration(partNumber) {
+            const part = parts.value.find(p => p.partNumber === partNumber)
+            if (!part) return 0
+            
+            return part.operations.reduce((total, op) => {
+                return total + (op.setupTime + (op.cycleTime * op.pieces))
+            }, 0)
+        }
+
+        function calculateTotalDaysRequired(partNumber) {
+            const totalMinutes = calculateJobDuration(partNumber)
+            const hoursPerDay = 7.5
+            const minutesPerDay = hoursPerDay * 60
+            const totalDays = totalMinutes / minutesPerDay
+            return Math.ceil(totalDays)
+        }
+
+        function calculateJobViability(startDate, deadline, duration, includeSaturdays) {
+            const startDateTime = parseDate(startDate)
+            const deadlineTime = parseDate(deadline)
+            
+            const operationEndDate = addWorkingMinutesToDate(startDateTime, duration, includeSaturdays)
+            const possible = operationEndDate <= deadlineTime
+
+            const daysNeeded = getWorkingDaysBetweenDates(startDateTime, operationEndDate, includeSaturdays)
+            
+            return {
+                possible,
+                operationEndDate,
+                requiredMinutes: duration,
+                daysNeeded
+            }
+        }
+
+        function calculateOperationDaysRequired(opIndex) {
+            const part = getPart(newJob.value.partNumber)
+            if (!part) return 0
+            const op = part.operations[opIndex]
+            const opDurationMinutes = op.setupTime + (op.cycleTime * op.pieces)
+            const hoursPerDay = 7.5
+            const minutesPerDay = hoursPerDay * 60
+            const totalDays = opDurationMinutes / minutesPerDay
+            return Math.ceil(totalDays)
+        }
+
+        function scheduleJob(part) {
+            currentPage.value = 'schedule'
+            newJob.value.partNumber = part.partNumber
+        }
+
+        function editJob(job) {
+            currentPage.value = 'schedule'
+            editingJob.value = job
+            newJob.value = {
+                partNumber: job.partNumber,
+                startDate: formatDateISO(job.startDate),
+                deadline: formatDateISO(job.deadline),
+                includeSaturdays: job.includeSaturdays,
+                operations: JSON.parse(JSON.stringify(job.operations))
+            }
+        }
+
+        function editJobById(jobId) {
+            const job = jobs.value.find(j => j.id === jobId)
+            if (job) {
+                editJob(job)
+            }
+        }
+
+        function editJobByPartNumber(partNumber) {
+            const job = jobs.value.find(j => j.partNumber === partNumber)
+            if (job) {
+                editJob(job)
+            } else {
+                alert('No job exists for this part.')
+            }
+        }
+
+        function jobExistsForPart(partNumber) {
+            return jobs.value.some(job => job.partNumber === partNumber)
+        }
+
+        function updateOperationNotes(jobId, opIndex, field, value) {
+            if (!operationNotes.value[jobId]) {
+                operationNotes.value[jobId] = {}
+            }
+            if (!operationNotes.value[jobId][opIndex]) {
+                operationNotes.value[jobId][opIndex] = { issues: '', lessons: '' }
+            }
+            operationNotes.value[jobId][opIndex][field] = value
+            saveDataToServer()
+        }
+
+        function selectJob(job) {
+            selectedJob.value = job
+            expandedJobId.value = job.id
+        }
+
+        function toggleJobDetails(jobId) {
+            if (expandedJobId.value === jobId) {
+                expandedJobId.value = null
+                selectedJob.value = null
+            } else {
+                expandedJobId.value = jobId
+                selectedJob.value = jobs.value.find(job => job.id === jobId)
+            }
+        }
+
+        function getJobProgressPercent(job) {
+            const progress = operationProgress.value[job.id] || {}
+            const totalProgress = Object.values(progress).reduce((sum, pieces) => sum + pieces, 0)
+            const part = getPart(job.partNumber)
+            if (!part) return 0
+            const totalPlanned = part.operations.reduce((sum, op) => sum + op.pieces, 0)
+            if (totalPlanned === 0) return 0
+            return (totalProgress / totalPlanned) * 100
+        }
+
+        function getOperationProgressPercentPerOperation(jobId, opIndex) {
+            const progress = operationProgress.value[jobId] && operationProgress.value[jobId][opIndex] || 0;
+            const job = jobs.value.find(job => job.id === jobId);
+            if (!job) return 0;
+            const part = getPart(job.partNumber);
+            if (!part) return 0;
+            const op = part.operations[opIndex];
+            if (!op) return 0;
+            if (op.pieces === 0) return 0;
+            return (progress / op.pieces) * 100;
+        }
+
+        function addWorkingMinutesToDate(startDate, minutesToAdd, includeSaturdays) {
+            const workingHoursPerDay = 7.5
+            const minutesPerDay = workingHoursPerDay * 60
+            let minutesRemaining = minutesToAdd
+            let currentDate = new Date(startDate)
+            currentDate.setHours(8, 0, 0, 0) // Assume work starts at 8 AM
+            
+            while(minutesRemaining > 0){
+                const dayOfWeek = currentDate.getDay()
+                if(dayOfWeek !== 0 && (includeSaturdays || dayOfWeek !== 6)){
+                    const availableMinutesToday = minutesPerDay
+                    if(minutesRemaining >= availableMinutesToday){
+                        minutesRemaining -= availableMinutesToday
+                        // Move to next day
+                        currentDate.setDate(currentDate.getDate() + 1)
+                        currentDate.setHours(8, 0, 0, 0)
+                    } else {
+                        // Operation ends on this day
+                        // Adjust currentDate's time to account for remaining minutes
+                        currentDate.setMinutes(currentDate.getMinutes() + minutesRemaining)
+                        minutesRemaining = 0
+                    }
+                } else {
+                    // Non-working day, skip
+                    currentDate.setDate(currentDate.getDate() + 1)
+                    currentDate.setHours(8, 0, 0, 0)
+                }
+            }
+            // Return the end date (date only)
+            return new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
+        }
+
+        function addWorkingDays(startDate, daysToAdd, includeSaturdays) {
+            let daysAdded = 0
+            let currentDate = new Date(startDate)
+            while (daysAdded < daysToAdd) {
+                currentDate.setDate(currentDate.getDate() + 1)
+                const dayOfWeek = currentDate.getDay()
+                if (dayOfWeek !== 0 && (includeSaturdays || dayOfWeek !== 6)) {
+                    daysAdded++
+                }
+            }
+            return currentDate
+        }
+
+        function calculateOperationStartDate(opIndex) {
+            const part = getPart(newJob.value.partNumber)
+            if (!part) return null
+            if (!newJob.value.startDate) return null
+            let opStartDate = parseDate(newJob.value.startDate)
+            for (let i = 0; i < opIndex; i++) {
+                const op = part.operations[i]
+                const opDurationMinutes = op.setupTime + (op.cycleTime * op.pieces)
+                opStartDate = addWorkingMinutesToDate(opStartDate, opDurationMinutes, newJob.value.includeSaturdays)
+            }
+            return opStartDate
+        }
+
+        function calculateOperationEndDate(opIndex) {
+            const part = getPart(newJob.value.partNumber)
+            if (!part) return null
+            let opStartDate = calculateOperationStartDate(opIndex)
+            const op = part.operations[opIndex]
+            const opDurationMinutes = op.setupTime + (op.cycleTime * op.pieces)
+
+            if (opIndex === part.operations.length -1) {
+                // For last operation, calculate total duration up to this operation
+                let totalDurationMinutes = 0
+                for (let i = 0; i <= opIndex; i++) {
+                    const currentOp = part.operations[i]
+                    totalDurationMinutes += currentOp.setupTime + (currentOp.cycleTime * currentOp.pieces)
+                }
+
+                opEndDate = addWorkingMinutesToDate(parseDate(newJob.value.startDate), totalDurationMinutes, newJob.value.includeSaturdays)
+            } else {
+                opEndDate = addWorkingMinutesToDate(opStartDate, opDurationMinutes, newJob.value.includeSaturdays)
+            }
+
+            return opEndDate
+        }
+
+        const machineSchedules = computed(() => {
+            const schedules = {} // Keyed by machine number
+            
+            for(const job of jobs.value){
+                const part = getPart(job.partNumber)
+                if(part){
+                    const operations = part.operations
+                    let opStartDate = new Date(job.startDate)
+                    opStartDate.setHours(8,0,0,0)
+                    for(let opIndex = 0; opIndex < operations.length; opIndex++){
+                        const op = operations[opIndex]
+                        const machine = job.operations && job.operations[opIndex] && job.operations[opIndex].machineNumber
+                        if(machine){
+                            if(!schedules[machine]){
+                                schedules[machine] = []
+                            }
+
+                            // For last operation, calculate total duration up to this operation
+                            let opEndDate;
+                            if(opIndex === operations.length - 1){
+                                let totalDurationMinutes = 0
+                                for(let i = 0; i <= opIndex; i++){
+                                    const currentOp = operations[i]
+                                    totalDurationMinutes += currentOp.setupTime + (currentOp.cycleTime * currentOp.pieces)
+                                }
+
+                                opEndDate = addWorkingMinutesToDate(new Date(job.startDate), totalDurationMinutes, job.includeSaturdays)
+                            } else {
+                                const opDurationMinutes = op.setupTime + (op.cycleTime * op.pieces)
+                                opEndDate = addWorkingMinutesToDate(opStartDate, opDurationMinutes, job.includeSaturdays)
+                            }
+
+                            // Add operation to schedule
+                            schedules[machine].push({
+                                jobId: job.id,
+                                job,
+                                opIndex,
+                                op,
+                                startDate: new Date(opStartDate),
+                                endDate: new Date(opEndDate),
+                                partNumber: job.partNumber,
+                                machine
+                            })
+
+                            // Set opStartDate for next operation
+                            if(opIndex !== operations.length -1){
+                                opStartDate = new Date(opEndDate)
+                                opStartDate.setHours(8,0,0,0)
+                            }
+                        } else {
+                            console.warn(`Machine not assigned for job ${job.id} operation ${opIndex + 1}. Skipping scheduling.`)
+                        }
+                    }
+                }
+            }
+            return schedules
+        })
+
+        function getOpBarStyle(opSchedule) {
+            const dates = getDatesInRange()
+
+            let opStartDate = opSchedule.startDate
+            let opEndDate = opSchedule.endDate
+
+            const firstDate = dates[0]
+            const lastDate = dates.length ? dates[dates.length -1] : null
+
+            if (opEndDate < firstDate || opStartDate > lastDate) {
+                // Operation outside of calendar range
+                return { display: 'none' }
+            }
+
+            if (opStartDate < firstDate) {
+                opStartDate = firstDate
+            }
+
+            if (opEndDate > lastDate) {
+                opEndDate = lastDate
+            }
+
+            const opStartIndex = dates.findIndex(d => d.toDateString() === opStartDate.toDateString())
+            const opEndIndex = dates.findIndex(d => d.toDateString() === opEndDate.toDateString())
+
+            if (opStartIndex === -1 || opEndIndex === -1) {
+                return { display: 'none' }
+            }
+
+            const left = opStartIndex * cellWidth + jobCellWidth
+            const width = (opEndIndex - opStartIndex + 1) * cellWidth
+
+            return {
+                position: 'absolute',
+                left: left + 'px',
+                width: width + 'px',
+                height: '10px',
+                top: '5px',
+                backgroundColor: '#e5e7eb',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            }
+        }
+        
+        const filteredParts = computed(() => {
+            let filtered = parts.value.slice()
+
+            if (customerNameSearchTerm.value) {
+                const term = customerNameSearchTerm.value.toLowerCase()
+                filtered = filtered.filter(part => 
+                    (part.customerName || '').toLowerCase().includes(term)
+                )
+            }
+
+            if (partNumberSearchTerm.value) {
+                const term = partNumberSearchTerm.value.toLowerCase()
+                filtered = filtered.filter(part => 
+                    part.partNumber.toLowerCase().includes(term)
+                )
+            }
+
+            return filtered.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''))
+        })
+        
+        // Computed properties
+        const availableWorkingDays = computed(() => {
+            if (!newJob.value.startDate || !newJob.value.deadline) return 0
+            return getWorkingDaysBetweenDates(parseDate(newJob.value.startDate), parseDate(newJob.value.deadline), newJob.value.includeSaturdays)
+        })
+
+        const totalDaysRequired = computed(() => calculateTotalDaysRequired(newJob.value.partNumber))
+
+        const jobViability = computed(() => calculateJobViability(newJob.value.startDate, newJob.value.deadline, calculateJobDuration(newJob.value.partNumber), newJob.value.includeSaturdays))
+        
+        const jobsSorted = computed(() => {
+            if (expandedJobId.value != null) {
+                const expandedJobIndex = jobs.value.findIndex(job => job.id === expandedJobId.value)
+                if (expandedJobIndex > -1) {
+                    const expandedJob = jobs.value[expandedJobIndex]
+                    const remainingJobs = jobs.value.slice(0, expandedJobIndex).concat(jobs.value.slice(expandedJobIndex + 1))
+                    return [expandedJob, ...remainingJobs]
+                }
+            }
+            return jobs.value
+        })
+
+        function saveDataToServer() {
+            const dataToSave = {
+                parts: parts.value,
+                jobs: jobs.value.map(job => {
+                    return {
+                        ...job,
+                        startDate: job.startDate.toISOString(),
+                        deadline: job.deadline.toISOString()
+                    }
+                }),
+                operationProgress: operationProgress.value,
+                operationNotes: operationNotes.value
+            }
+
+            fetch('api.php?action=saveData', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(dataToSave)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (!result.success) {
+                    console.error('Error saving data:', result.message)
+                }
+            })
+            .catch(error => {
+                console.error('Error saving data:', error)
+            })
+        }
+        
+        return {
+            currentPage,
+            navigation,
+            parts,
+            jobs,
+            jobsSorted,
+            newPart,
+            newJob,
+            customerNameSearchTerm,
+            partNumberSearchTerm,
+            selectedJob,
+            selectedPart,
+            filteredParts,
+            operationProgress,
+            operationNotes,
+            machineNumbers,
+            editingJob,
+            editingPart,
+            calendarStartDate,
+            calendarEndDate,
+            expandedJobId,
+            machineSchedules,
+            availableWorkingDays,
+            totalDaysRequired,
+            jobViability,
+            selectedMachine,
+            filteredMachines,
+            registerPart,
+            updateOperations,
+            parseDate,
+            formatDateISO,
+            getPart,
+            getJobNumbers,
+            hasActiveJobs,
+            hasJob,
+            editPart,
+            deletePart,
+            calculateOperationTime,
+            createJob,
+            deleteJob,
+            isOverdue,
+            formatDate,
+            formatDateShort,
+            getDatesInRange,
+            isDateInJobRange,
+            getJobBarStyle,
+            getDateIndex,
+            getJobStatusClass,
+            calculateTotalPieces,
+            updateOperationProgress,
+            incrementPieces,
+            decrementPieces,
+            getOperationProgress,
+            isPieceDecrementDisabled,
+            isPieceIncrementDisabled,
+            getJobStatus,
+            getStatusColor,
+            getStatusTileColor,
+            calculateJobDuration,
+            calculateTotalDaysRequired,
+            calculateJobViability,
+            calculateOperationDaysRequired,
+            scheduleJob,
+            editJob,
+            editJobById,
+            editJobByPartNumber,
+            jobExistsForPart,
+            updateOperationNotes,
+            selectJob,
+            toggleJobDetails,
+            getJobProgressPercent,
+            getOperationProgressPercentPerOperation,
+            getWorkingDaysBetweenDates,
+            getWorkingDaysListBetweenDates,
+            addWorkingMinutesToDate,
+            addWorkingDays,
+            calculateOperationStartDate,
+            calculateOperationEndDate,
+            getOpBarStyle,
+            cellWidth,
+            jobCellWidth
+        }
+    }
+}).mount('#app')
+</script>
+<script>
+    // Fetch data from the API
+    fetch('api.php')
+        .then(response => response.json())
+        .then(data => {
+            console.log(data); // Log fetched data
+            // Update your parts, jobs, etc., based on the fetched data
+        })
+        .catch(error => console.error('Error fetching data:', error));
+</script>
+<script>
+    function saveData() {
+        const dataToSave = {
+            parts: [/* Your parts array */],
+            jobs: [/* Your jobs array */],
+            operationProgress: {},
+            operationNotes: {}
+        };
+
+        fetch('api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dataToSave)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                console.log('Data saved successfully.');
+            } else {
+                console.error('Error saving data:', result.message);
+            }
+        })
+        .catch(error => console.error('Error saving data:', error));
+    }
+</script>
+<script>
+    // Disable right-click functionality
+    document.addEventListener('contextmenu', function (event) {
+        event.preventDefault();
+        alert("Right-click is disabled on this website.");
+    });
+</script>
+</body></html>

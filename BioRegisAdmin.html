@@ -317,10 +317,20 @@
                 modelsLoaded = true;
             }).catch((err) => {
                 console.error("Error loading models:", err);
-                alert("Error loading models: " + err.message);
+                statusDiv.style.color = 'red';
+                statusDiv.textContent = "Error loading models: " + err.message;
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                isVideoReady = true;
             });
 
             function turnOnCamera() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Your browser does not support getUserMedia API.";
+                    return;
+                }
                 navigator.mediaDevices.getUserMedia({ video: true })
                     .then((stream) => {
                         video.srcObject = stream;
@@ -329,18 +339,21 @@
                         startCaptureButton.disabled = false;
                         cancelRegistrationButton.classList.remove('hidden');
                         isVideoReady = false;
-                        video.addEventListener('loadedmetadata', () => {
-                            isVideoReady = true;
-                        });
                         turnOnCameraButton.classList.add('hidden');
                     })
                     .catch((err) => {
                         console.error("Error accessing webcam:", err);
                         statusDiv.style.color = 'red';
-                        statusDiv.textContent = "Error accessing the webcam: " + err.message + ". Please ensure that your camera is connected and you have granted permission.";
-                        // Ensure that 'turnOnCameraButton' remains visible
+                        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                            statusDiv.textContent = "Access to the camera was denied. Please allow camera access.";
+                        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                            statusDiv.textContent = "No camera devices found. Please ensure a camera is connected.";
+                        } else if (err.name === 'SecurityError') {
+                            statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
+                        } else {
+                            statusDiv.textContent = "Error accessing the webcam: " + err.message;
+                        }
                         turnOnCameraButton.classList.remove('hidden');
-                        // Hide the 'startCaptureButton' and 'cancelRegistrationButton'
                         startCaptureButton.classList.add('hidden');
                         cancelRegistrationButton.classList.add('hidden');
                     });
@@ -360,7 +373,8 @@
 
             startCaptureButton.addEventListener("click", async () => {
                 if (!modelsLoaded) {
-                    alert("Models are not loaded yet. Please wait.");
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Models are not loaded yet. Please wait.";
                     return;
                 }
 
@@ -403,47 +417,38 @@
                         saveUserData(firstName, lastName, descriptors);
                     }
 
-                }, 2000); // Adjust interval as needed
+                }, 2000);
             }
 
             cancelRegistrationButton.addEventListener("click", cancelRegistration);
 
             function cancelRegistration() {
-                // Stop any ongoing image capture
                 if (captureInterval) {
                     clearInterval(captureInterval);
                     captureInterval = null;
                 }
-                // Stop the video
                 stopVideo();
 
-                // Reset UI elements
                 countdownDiv.style.display = "none";
                 statusDiv.textContent = "Registration canceled.";
                 statusDiv.style.color = "black";
 
-                // Hide relevant buttons
                 cancelRegistrationButton.classList.add('hidden');
                 startCaptureButton.classList.add('hidden');
 
-                // Show the "Turn on camera to register" button
                 turnOnCameraButton.classList.remove('hidden');
 
-                // Reset updating state
                 isUpdating = false;
                 userToUpdate = null;
             }
 
             async function saveUserData(firstName, lastName, descriptors) {
                 try {
-                    // Create signature image with user's full name
                     const signatureImageBlob = await createSignatureImage(`${firstName} ${lastName}`);
-                    // Upload signature image
                     const signatureImageUrl = await websim.upload(signatureImageBlob);
 
-                    // Use the last captured image as the profile image
                     canvas.toBlob(async function(blob) {
-                        // Save the image locally
+
                         const anchor = document.createElement('a');
                         anchor.href = URL.createObjectURL(blob);
                         anchor.download = `${firstName}_${lastName}_biometric.png`;
@@ -452,15 +457,12 @@
                         anchor.click();
                         document.body.removeChild(anchor);
 
-                        // Release object URL after download
                         setTimeout(() => {
                             URL.revokeObjectURL(anchor.href);
                         }, 1000);
 
-                        // Upload the image to get a URL
                         try {
                             const imageUrl = await websim.upload(blob);
-                            // Save or update the user's descriptors, name, image URL, and signature image URL to the database
                             try {
                                 if (isUpdating && userToUpdate) {
                                     await room.collection('user').update(userToUpdate.id, {
@@ -483,35 +485,37 @@
                                 }
                             } catch (error) {
                                 console.error("Error saving user data:", error);
-                                alert("Error saving user data: " + error.message);
+                                statusDiv.style.color = 'red';
+                                statusDiv.textContent = "Error saving user data: " + error.message;
                             }
                         } catch (error) {
                             console.error("Error uploading image:", error);
-                            alert("Error uploading image: " + error.message);
+                            statusDiv.style.color = 'red';
+                            statusDiv.textContent = "Error uploading image: " + error.message;
                         }
 
-                        // Turn off the camera
                         stopVideo();
                         statusDiv.style.color = "green";
                         statusDiv.textContent = "Registration completed and camera turned off.";
-                        // Clear input fields
+
                         firstNameInput.value = '';
                         lastNameInput.value = '';
                         startCaptureButton.classList.add('hidden');
                         cancelRegistrationButton.classList.add('hidden');
 
-                        // Show the "Turn on camera to register" button
                         turnOnCameraButton.classList.remove('hidden');
                     }, 'image/png');
                 } catch (error) {
                     console.error("Error in saveUserData:", error);
-                    alert("Error in saving user data: " + error.message);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Error in saving user data: " + error.message;
                 }
             }
 
             scanUserButton.addEventListener("click", () => {
                 if (!modelsLoaded) {
-                    alert("Models are not loaded yet. Please wait.");
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Models are not loaded yet. Please wait.";
                     return;
                 }
 
@@ -521,21 +525,22 @@
                         video.style.display = "block";
                         canvas.style.display = "block";
                         isVideoReady = false;
-                        video.addEventListener('loadedmetadata', () => {
-                            isVideoReady = true;
-                        });
-                        startCaptureButton.classList.add('hidden');
-                        cancelRegistrationButton.classList.add('hidden');
                         isScanning = true;
                         scanUser();
                     })
                     .catch((err) => {
                         console.error("Error accessing webcam:", err);
                         statusDiv.style.color = 'red';
-                        statusDiv.textContent = "Error accessing the webcam: " + err.message + ". Please ensure that your camera is connected and you have granted permission.";
-                        // Ensure that 'scanUserButton' remains visible
+                        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                            statusDiv.textContent = "Access to the camera was denied. Please allow camera access.";
+                        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                            statusDiv.textContent = "No camera devices found. Please ensure a camera is connected.";
+                        } else if (err.name === 'SecurityError') {
+                            statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
+                        } else {
+                            statusDiv.textContent = "Error accessing the webcam: " + err.message;
+                        }
                         scanUserButton.classList.remove('hidden');
-                        // Hide video and canvas
                         video.style.display = "none";
                         canvas.style.display = "none";
                         isScanning = false;
@@ -564,7 +569,7 @@
                     return;
                 }
 
-                const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.7); // Adjust threshold as needed
+                const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.7);
 
                 const interval = setInterval(async () => {
                     if (!isScanning) {
@@ -572,7 +577,6 @@
                         return;
                     }
                     if (!isVideoReady || video.videoWidth === 0 || video.videoHeight === 0) {
-                        // Video not ready, skip this iteration
                         return;
                     }
                     const displaySize = { width: video.videoWidth, height: video.videoHeight };
@@ -592,7 +596,6 @@
                             const drawBox = new faceapi.draw.DrawBox(box, { label: bestMatch.toString() });
                             drawBox.draw(canvas);
                             if (bestMatch.label !== 'unknown') {
-                                // Find the matched user
                                 const matchedUser = users.find(user => user.name === bestMatch.label);
                                 if (matchedUser && matchedUser.signatureImageUrl) {
                                     const signatureImg = document.createElement('img');
@@ -620,15 +623,16 @@
                 }, 1000);
             }
 
-            // Capture and process the image
             async function captureAndProcess() {
                 const context = canvas.getContext("2d");
                 if (!context) {
-                    alert("Cannot get canvas context");
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Cannot get canvas context";
                     return null;
                 }
                 if (!isVideoReady || video.videoWidth === 0 || video.videoHeight === 0) {
-                    alert("Video not ready. Please try again.");
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Video not ready. Please try again.";
                     return null;
                 }
                 canvas.width = video.videoWidth;
@@ -653,7 +657,6 @@
                 cancelRegistrationButton.classList.add('hidden');
             }
 
-            // Function to render the user list
             function renderUserList(users) {
                 const userListDiv = document.getElementById("userList");
                 userListDiv.innerHTML = "<h2>Registered Users:</h2>";
@@ -664,7 +667,6 @@
                     users.forEach(user => {
                         const li = document.createElement("li");
 
-                        // Create a container div to hold all user info
                         const userInfoDiv = document.createElement("div");
                         userInfoDiv.style.display = "flex";
                         userInfoDiv.style.alignItems = "center";
@@ -680,7 +682,6 @@
                         nameSpan.style.marginRight = "15px";
                         userInfoDiv.appendChild(nameSpan);
 
-                        // Add signature image
                         if (user.signatureImageUrl) {
                             const signatureImg = document.createElement("img");
                             signatureImg.src = user.signatureImageUrl;
@@ -689,7 +690,6 @@
                             userInfoDiv.appendChild(signatureImg);
                         }
 
-                        // Add Delete and Update buttons only if the current user created the record
                         const buttonsDiv = document.createElement("div");
                         const canEdit = user.username === room.party.client.username;
 
@@ -735,7 +735,8 @@
                         console.log("User deleted");
                     } catch (error) {
                         console.error("Error deleting user:", error);
-                        alert("Error deleting user: " + error.message);
+                        statusDiv.style.color = 'red';
+                        statusDiv.textContent = "Error deleting user: " + error.message;
                     }
                     userIdToDelete = null;
                 }
@@ -761,22 +762,17 @@
                 statusDiv.textContent = "Update the details and capture new images.";
                 window.scrollTo(0, 0);
 
-                // Show the "Start Capturing", "Cancel Registration", and "Scan User" buttons
                 startCaptureButton.classList.remove('hidden');
                 cancelRegistrationButton.classList.remove('hidden');
                 scanUserButton.classList.remove('hidden');
 
-                // Show the "Turn on camera to register" button
                 turnOnCameraButton.classList.remove('hidden');
 
-                // Turn on the camera
                 turnOnCamera();
 
-                // Clear any error messages
                 nameErrorDiv.textContent = "";
             }
 
-            // Create signature image
             function createSignatureImage(signatureText) {
                 return new Promise((resolve, reject) => {
                     const fonts = ["Lucida Handwriting", "Alex Brush", "Edwardian Script ITC", "Great Vibes", "Caveat"];
@@ -810,7 +806,6 @@
                 });
             }
 
-            // Subscribe to the user collection to get updates
             room.collection('user').subscribe(function(users) {
                 renderUserList(users);
             });

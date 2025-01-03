@@ -70,11 +70,13 @@
         button:hover {
             background-color: #344955;
         }
-        #video {
+        #video,
+        #canvas {
             width: 3in;
             height: 3in;
             border: 1px solid #ccc;
             border-radius: 5px;
+            margin: 0 auto;
             display: none;
         }
         #status {
@@ -100,7 +102,7 @@
             padding: 10px;
             border-radius: 5px;
             flex-wrap: nowrap;
-            justify-content: space-between;
+            justify-content: flex-start;
         }
         #userList img {
             margin-right: 15px;
@@ -109,6 +111,21 @@
             height: 60px;
             object-fit: cover;
             border: 2px solid #ccc;
+        }
+        #userList button {
+            margin-left: 10px;
+            padding: 8px 12px;
+            font-size: 14px;
+            background-color: #E94B3C;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #userList button.update {
+            background-color: #4A6572;
+        }
+        #userList button:hover {
+            opacity: 0.9;
         }
         .error-message {
             color: red;
@@ -126,7 +143,10 @@
             <input type="text" id="firstName" placeholder="First Name" />
             <label for="lastName">Last Name:</label>
             <input type="text" id="lastName" placeholder="Last Name" />
+            <div id="nameError" class="error-message"></div>
             <button id="turnOnCamera">Turn on camera to register</button>
+            <button id="startCapture" class="hidden">Start Capturing</button>
+            <button id="cancelRegistration" class="hidden">Cancel Registration</button>
             <button id="scanUser">Scan User</button>
             <div id="status"></div>
             <div id="userList">
@@ -136,6 +156,7 @@
         </div>
         <div class="right-side">
             <video id="video" autoplay></video>
+            <canvas id="canvas"></canvas>
         </div>
     </div>
 
@@ -145,8 +166,14 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const video = document.getElementById("video");
+            const canvas = document.getElementById("canvas");
             const turnOnCameraButton = document.getElementById("turnOnCamera");
+            const startCaptureButton = document.getElementById("startCapture");
+            const cancelRegistrationButton = document.getElementById("cancelRegistration");
             const scanUserButton = document.getElementById("scanUser");
+            const firstNameInput = document.getElementById("firstName");
+            const lastNameInput = document.getElementById("lastName");
+            const nameErrorDiv = document.getElementById("nameError");
             const statusDiv = document.getElementById("status");
             const userList = document.querySelector("#userList ul");
 
@@ -157,6 +184,8 @@
                 { id: 4, name: "Quennie Molas", imageUrl: "https://via.placeholder.com/60" },
                 { id: 5, name: "Janice Llanos", imageUrl: "https://via.placeholder.com/60" }
             ];
+
+            let isVideoOn = false;
 
             function renderUserList() {
                 userList.innerHTML = "";
@@ -172,6 +201,7 @@
 
                     const updateButton = document.createElement("button");
                     updateButton.textContent = "Update";
+                    updateButton.classList.add("update");
 
                     const deleteButton = document.createElement("button");
                     deleteButton.textContent = "Delete";
@@ -196,7 +226,11 @@
                     .then((stream) => {
                         video.srcObject = stream;
                         video.style.display = "block";
+                        startCaptureButton.classList.remove("hidden");
+                        cancelRegistrationButton.classList.remove("hidden");
+                        turnOnCameraButton.classList.add("hidden");
                         statusDiv.textContent = "Camera is on.";
+                        isVideoOn = true;
                     })
                     .catch((err) => {
                         console.error("Error accessing webcam:", err);
@@ -204,7 +238,39 @@
                     });
             }
 
+            function startCapturing() {
+                if (!isVideoOn) {
+                    statusDiv.textContent = "Please turn on the camera first.";
+                    return;
+                }
+
+                const context = canvas.getContext("2d");
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                statusDiv.textContent = "Captured an image!";
+            }
+
+            function cancelRegistration() {
+                const stream = video.srcObject;
+                const tracks = stream.getTracks();
+
+                tracks.forEach(track => track.stop());
+                video.srcObject = null;
+                video.style.display = "none";
+
+                startCaptureButton.classList.add("hidden");
+                cancelRegistrationButton.classList.add("hidden");
+                turnOnCameraButton.classList.remove("hidden");
+                statusDiv.textContent = "Camera turned off.";
+                isVideoOn = false;
+            }
+
             turnOnCameraButton.addEventListener("click", turnOnCamera);
+            startCaptureButton.addEventListener("click", startCapturing);
+            cancelRegistrationButton.addEventListener("click", cancelRegistration);
             scanUserButton.addEventListener("click", () => {
                 statusDiv.textContent = "Scanning for users...";
             });

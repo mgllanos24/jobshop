@@ -326,23 +326,34 @@
             });
 
             function turnOnCamera() {
+                console.log("turnOnCamera function called");
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    console.log("getUserMedia not supported");
                     statusDiv.style.color = 'red';
                     statusDiv.textContent = "Your browser does not support getUserMedia API.";
                     return;
                 }
+                console.log("Requesting access to webcam");
                 navigator.mediaDevices.getUserMedia({ video: true })
                     .then((stream) => {
+                        console.log("Webcam access granted");
                         video.srcObject = stream;
+                        console.log("Video stream set to video element");
                         video.style.display = "block";
+                        console.log("Video element displayed");
                         startCaptureButton.classList.remove('hidden');
                         startCaptureButton.disabled = false;
+                        console.log("Start Capture button shown and enabled");
                         cancelRegistrationButton.classList.remove('hidden');
+                        console.log("Cancel Registration button shown");
                         isVideoReady = false;
                         turnOnCameraButton.classList.add('hidden');
+                        console.log("Turn On Camera button hidden");
                     })
                     .catch((err) => {
                         console.error("Error accessing webcam:", err);
+                        console.log("Error name:", err.name);
+                        console.log("Error message:", err.message);
                         statusDiv.style.color = 'red';
                         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                             statusDiv.textContent = "Access to the camera was denied. Please allow camera access.";
@@ -423,6 +434,7 @@
             cancelRegistrationButton.addEventListener("click", cancelRegistration);
 
             function cancelRegistration() {
+                console.log("Registration canceled by user");
                 if (captureInterval) {
                     clearInterval(captureInterval);
                     captureInterval = null;
@@ -519,8 +531,10 @@
                     return;
                 }
 
+                console.log("Initiating user scan");
                 navigator.mediaDevices.getUserMedia({ video: true })
                     .then((stream) => {
+                        console.log("Webcam access granted for scanning");
                         video.srcObject = stream;
                         video.style.display = "block";
                         canvas.style.display = "block";
@@ -530,6 +544,8 @@
                     })
                     .catch((err) => {
                         console.error("Error accessing webcam:", err);
+                        console.log("Error name:", err.name);
+                        console.log("Error message:", err.message);
                         statusDiv.style.color = 'red';
                         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                             statusDiv.textContent = "Access to the camera was denied. Please allow camera access.";

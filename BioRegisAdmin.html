@@ -7,7 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Import Google Fonts -->
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,600&display=swap" rel="stylesheet">
-    <!-- Include styles -->
     <style>
         body {
             font-family: 'Open Sans', sans-serif;
@@ -82,6 +81,39 @@
             font-size: 1em;
             margin-top: 15px;
         }
+        #userList {
+            margin-top: 20px;
+        }
+        #userList h2 {
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        #userList ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #userList li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            flex-wrap: nowrap;
+            justify-content: space-between;
+        }
+        #userList img {
+            margin-right: 15px;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border: 2px solid #ccc;
+        }
+        .error-message {
+            color: red;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -95,7 +127,12 @@
             <label for="lastName">Last Name:</label>
             <input type="text" id="lastName" placeholder="Last Name" />
             <button id="turnOnCamera">Turn on camera to register</button>
+            <button id="scanUser">Scan User</button>
             <div id="status"></div>
+            <div id="userList">
+                <h2>Registered Users:</h2>
+                <ul></ul>
+            </div>
         </div>
         <div class="right-side">
             <video id="video" autoplay></video>
@@ -109,19 +146,45 @@
         document.addEventListener("DOMContentLoaded", () => {
             const video = document.getElementById("video");
             const turnOnCameraButton = document.getElementById("turnOnCamera");
+            const scanUserButton = document.getElementById("scanUser");
             const statusDiv = document.getElementById("status");
+            const userList = document.querySelector("#userList ul");
 
-            // Load face-api.js models
-            Promise.all([
-                faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
-                faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
-                faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
-            ]).then(() => {
-                console.log("Models loaded");
-            }).catch((err) => {
-                console.error("Error loading models:", err);
-                statusDiv.textContent = "Error loading models: " + err.message;
-            });
+            const users = [
+                { id: 1, name: "Mark Vincent Llanos", imageUrl: "https://via.placeholder.com/60" },
+                { id: 2, name: "Keon Llanos", imageUrl: "https://via.placeholder.com/60" },
+                { id: 3, name: "Koen Llanos", imageUrl: "https://via.placeholder.com/60" },
+                { id: 4, name: "Quennie Molas", imageUrl: "https://via.placeholder.com/60" },
+                { id: 5, name: "Janice Llanos", imageUrl: "https://via.placeholder.com/60" }
+            ];
+
+            function renderUserList() {
+                userList.innerHTML = "";
+                users.forEach(user => {
+                    const li = document.createElement("li");
+
+                    const img = document.createElement("img");
+                    img.src = user.imageUrl;
+                    img.alt = user.name;
+
+                    const nameSpan = document.createElement("span");
+                    nameSpan.textContent = user.name;
+
+                    const updateButton = document.createElement("button");
+                    updateButton.textContent = "Update";
+
+                    const deleteButton = document.createElement("button");
+                    deleteButton.textContent = "Delete";
+                    deleteButton.style.backgroundColor = "#E94B3C";
+
+                    li.appendChild(img);
+                    li.appendChild(nameSpan);
+                    li.appendChild(updateButton);
+                    li.appendChild(deleteButton);
+
+                    userList.appendChild(li);
+                });
+            }
 
             function turnOnCamera() {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -142,6 +205,11 @@
             }
 
             turnOnCameraButton.addEventListener("click", turnOnCamera);
+            scanUserButton.addEventListener("click", () => {
+                statusDiv.textContent = "Scanning for users...";
+            });
+
+            renderUserList();
         });
     </script>
 </body>

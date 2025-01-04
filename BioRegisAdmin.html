@@ -79,6 +79,11 @@
             display: block;
             margin: 20px 0;
         }
+        .error-message {
+            color: red;
+            font-size: 14px;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -93,12 +98,14 @@
             <label for="lastName">Last Name:</label>
             <input type="text" id="lastName" placeholder="Last Name">
 
+            <div id="nameError" class="error-message"></div>
+
             <label for="signature">Digital Signature:</label>
             <canvas id="signaturePad" width="300" height="150"></canvas>
             <button id="clearSignature">Clear Signature</button>
             <button id="saveData">Save Data</button>
 
-            <button id="turnOnCamera">Turn on Camera</button>
+            <button id="turnOnCamera">Turn on Camera to Register</button>
             <button id="startCapture" class="hidden">Capture Image</button>
             <button id="cancelRegistration" class="hidden">Cancel</button>
 
@@ -126,11 +133,27 @@
             const cancelRegistrationButton = document.getElementById("cancelRegistration");
             const firstNameInput = document.getElementById("firstName");
             const lastNameInput = document.getElementById("lastName");
+            const nameErrorDiv = document.getElementById("nameError");
             const statusDiv = document.getElementById("status");
 
             let isVideoOn = false;
 
+            function validateNameFields() {
+                const firstName = firstNameInput.value.trim();
+                const lastName = lastNameInput.value.trim();
+
+                if (!firstName || !lastName) {
+                    nameErrorDiv.textContent = "Please enter your first and last name.";
+                    return false;
+                } else {
+                    nameErrorDiv.textContent = "";
+                    return true;
+                }
+            }
+
             function turnOnCamera() {
+                if (!validateNameFields()) return;
+
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     statusDiv.textContent = "Your browser does not support camera access.";
                     return;
@@ -182,6 +205,8 @@
             }
 
             function saveData() {
+                if (!validateNameFields()) return;
+
                 if (signaturePad.isEmpty()) {
                     alert("Please provide a signature.");
                     return;
@@ -191,11 +216,6 @@
                 const lastName = lastNameInput.value;
                 const faceImage = canvas.toDataURL();
                 const digitalSignature = signaturePad.toDataURL();
-
-                if (!firstName || !lastName) {
-                    alert("Please fill in your name.");
-                    return;
-                }
 
                 fetch('/register', {
                     method: 'POST',

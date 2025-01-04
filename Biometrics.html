@@ -1,0 +1,815 @@
+<html><head><base href="https://unpkg.com/face-api.js@0.22.2/">
+    <meta charset="UTF-8">
+    <title>Biometrics Registration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Import Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Edwardian+Script+ITC&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lucida+Handwriting&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat&display=swap" rel="stylesheet">
+    <!-- Include styles -->
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            margin: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        header {
+            background-color: #344955;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 20px;
+        }
+
+        .left-side,
+        .right-side {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .left-side {
+            flex: 1 1 300px;
+            margin-right: 20px;
+        }
+
+        .right-side {
+            flex: 0 0 320px;
+            text-align: center;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"] {
+            font-size: 16px;
+            padding: 10px;
+            width: calc(100% - 24px);
+            margin-bottom: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #4A6572;
+            color: #fff;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        button:hover {
+            background-color: #344955;
+        }
+
+        #video,
+        #canvas {
+            width: 3in;
+            height: 3in;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin: 0 auto;
+            display: none;
+        }
+
+        #status {
+            font-size: 1em;
+            margin-top: 15px;
+        }
+
+        #countdown {
+            font-size: 3em;
+            color: #E94B3C;
+            margin-top: 20px;
+            display: none;
+        }
+
+        #userList {
+            margin-top: 20px;
+        }
+
+        #userList h2 {
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        #userList ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #userList li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+        }
+
+        #userList img.profile-pic {
+            margin-right: 15px;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border: 2px solid #ccc;
+        }
+
+        #userList img.signature-pic {
+            margin-left: 15px;
+            margin-right: 15px;
+            width: 200px;
+            max-width: 200px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+        }
+
+        #userList span {
+            font-size: 16px;
+            color: #333;
+        }
+
+        #userList button {
+            margin-left: 10px;
+            padding: 8px 12px;
+            font-size: 14px;
+            background-color: #E94B3C;
+        }
+
+        #userList button.update {
+            background-color: #4A6572;
+        }
+
+        #userList button:hover {
+            opacity: 0.9;
+        }
+
+        .error-message {
+            color: red;
+            margin-top: 5px;
+        }
+
+        /* Modal Styles */
+        /* The Modal (background) */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            padding-top: 100px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Modal Content */
+        .modal-content {
+            background-color: white;
+            margin: auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 300px;
+            text-align: center;
+            border-radius: 5px;
+        }
+
+        .modal-content p {
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .modal-content button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .modal-content button#confirmDelete {
+            background-color: #E94B3C;
+            color: #fff;
+        }
+
+        .modal-content button#cancelDelete {
+            background-color: #ccc;
+            color: #333;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Biometrics Registration</h1>
+    </header>
+    <div class="container">
+        <div class="left-side">
+            <div id="nameForm">
+                <label for="firstName">First Name:</label>
+                <input type="text" id="firstName" placeholder="First Name" />
+                <label for="lastName">Last Name:</label>
+                <input type="text" id="lastName" placeholder="Last Name" />
+            </div>
+            <div id="nameError" class="error-message"></div>
+            <button id="turnOnCamera">Turn on camera to register</button>
+            <button id="startCapture" class="hidden">Start Capturing</button>
+            <button id="cancelRegistration" class="hidden">Cancel Registration</button>
+            <button id="scanUser">Scan User</button>
+            <div id="status"></div>
+            <div id="signatureDisplay"></div>
+            <div id="userList"></div>
+        </div>
+        <div class="right-side">
+            <div>
+                <video id="video" autoplay></video>
+                <canvas id="canvas"></canvas>
+                <div id="countdown"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Modal -->
+    <div id="deleteModal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content">
+            <p>Are you sure you want to delete this user?</p>
+            <button id="confirmDelete">Yes</button>
+            <button id="cancelDelete">No</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/websim-socket@latest/dist/websim-socket.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/websim@latest/dist/websim.min.js"></script>
+    <script>
+        let userIdToDelete = null;
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const video = document.getElementById("video");
+            const canvas = document.getElementById("canvas");
+            const statusDiv = document.getElementById("status");
+            const turnOnCameraButton = document.getElementById("turnOnCamera");
+            const startCaptureButton = document.getElementById("startCapture");
+            const cancelRegistrationButton = document.getElementById("cancelRegistration");
+            const firstNameInput = document.getElementById("firstName");
+            const lastNameInput = document.getElementById("lastName");
+            const countdownDiv = document.getElementById("countdown");
+            const scanUserButton = document.getElementById("scanUser");
+            const nameErrorDiv = document.getElementById("nameError");
+
+            const confirmDeleteBtn = document.getElementById("confirmDelete");
+            const cancelDeleteBtn = document.getElementById("cancelDelete");
+            const deleteModal = document.getElementById("deleteModal");
+
+            const signatureDisplayDiv = document.getElementById("signatureDisplay");
+
+            let modelsLoaded = false;
+            let isUpdating = false;
+            let userToUpdate = null;
+            let isScanning = false;
+            let isVideoReady = false;
+
+            let captureInterval = null;
+
+            const room = new WebsimSocket();
+
+            // Load models
+            Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
+                faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models')
+            ]).then(() => {
+                console.log("Models loaded");
+                modelsLoaded = true;
+            }).catch((err) => {
+                console.error("Error loading models:", err);
+                statusDiv.style.color = 'red';
+                statusDiv.textContent = "Error loading models: " + err.message;
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                isVideoReady = true;
+            });
+
+            function turnOnCamera() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Your browser does not support getUserMedia API.";
+                    return;
+                }
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then((stream) => {
+                        video.srcObject = stream;
+                        video.style.display = "block";
+                        startCaptureButton.classList.remove('hidden');
+                        startCaptureButton.disabled = false;
+                        cancelRegistrationButton.classList.remove('hidden');
+                        isVideoReady = false;
+                        turnOnCameraButton.classList.add('hidden');
+                    })
+                    .catch((err) => {
+                        console.error("Error accessing webcam:", err);
+                        statusDiv.style.color = 'red';
+                        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                            statusDiv.textContent = "Access to the camera was denied. Please allow camera access.";
+                        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                            statusDiv.textContent = "No camera devices found. Please ensure a camera is connected.";
+                        } else if (err.name === 'SecurityError') {
+                            statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
+                        } else {
+                            statusDiv.textContent = "Error accessing the webcam: " + err.message;
+                        }
+                        turnOnCameraButton.classList.remove('hidden');
+                        startCaptureButton.classList.add('hidden');
+                        cancelRegistrationButton.classList.add('hidden');
+                    });
+            }
+
+            turnOnCameraButton.addEventListener("click", () => {
+                const firstName = firstNameInput.value.trim();
+                const lastName = lastNameInput.value.trim();
+                if (!firstName || !lastName) {
+                    nameErrorDiv.textContent = "Please enter your first and last name.";
+                    return;
+                } else {
+                    nameErrorDiv.textContent = "";
+                }
+                turnOnCamera();
+            });
+
+            startCaptureButton.addEventListener("click", async () => {
+                if (!modelsLoaded) {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Models are not loaded yet. Please wait.";
+                    return;
+                }
+
+                const firstName = firstNameInput.value.trim();
+                const lastName = lastNameInput.value.trim();
+                if (!firstName || !lastName) {
+                    nameErrorDiv.textContent = "Please enter your first and last name.";
+                    return;
+                } else {
+                    nameErrorDiv.textContent = "";
+                }
+
+                captureMultipleImages(firstName, lastName);
+            });
+
+            function captureMultipleImages(firstName, lastName) {
+                const numCaptures = 5;
+                const descriptors = [];
+
+                let captureCount = 0;
+
+                statusDiv.style.color = "black";
+                statusDiv.textContent = "Please look at the camera. Capturing images...";
+
+                captureInterval = setInterval(async () => {
+                    captureCount++;
+
+                    const detection = await captureAndProcess();
+                    if (detection && detection.descriptor) {
+                        descriptors.push(Array.from(detection.descriptor));
+                        statusDiv.textContent = `Captured image ${captureCount} of ${numCaptures}`;
+                    } else {
+                        statusDiv.textContent = `Face not detected in image ${captureCount}. Please hold still.`;
+                        captureCount--; // Retake this image
+                    }
+
+                    if (captureCount >= numCaptures) {
+                        clearInterval(captureInterval);
+                        captureInterval = null;
+                        saveUserData(firstName, lastName, descriptors);
+                    }
+
+                }, 2000);
+            }
+
+            cancelRegistrationButton.addEventListener("click", cancelRegistration);
+
+            function cancelRegistration() {
+                if (captureInterval) {
+                    clearInterval(captureInterval);
+                    captureInterval = null;
+                }
+                stopVideo();
+
+                countdownDiv.style.display = "none";
+                statusDiv.textContent = "Registration canceled.";
+                statusDiv.style.color = "black";
+
+                cancelRegistrationButton.classList.add('hidden');
+                startCaptureButton.classList.add('hidden');
+
+                turnOnCameraButton.classList.remove('hidden');
+
+                isUpdating = false;
+                userToUpdate = null;
+            }
+
+            async function saveUserData(firstName, lastName, descriptors) {
+                try {
+                    const signatureImageBlob = await createSignatureImage(`${firstName} ${lastName}`);
+                    const signatureImageUrl = await websim.upload(signatureImageBlob);
+
+                    canvas.toBlob(async function(blob) {
+
+                        const anchor = document.createElement('a');
+                        anchor.href = URL.createObjectURL(blob);
+                        anchor.download = `${firstName}_${lastName}_biometric.png`;
+                        anchor.style.display = 'none';
+                        document.body.appendChild(anchor);
+                        anchor.click();
+                        document.body.removeChild(anchor);
+
+                        setTimeout(() => {
+                            URL.revokeObjectURL(anchor.href);
+                        }, 1000);
+
+                        try {
+                            const imageUrl = await websim.upload(blob);
+                            try {
+                                if (isUpdating && userToUpdate) {
+                                    await room.collection('user').update(userToUpdate.id, {
+                                        name: `${firstName} ${lastName}`,
+                                        descriptors: descriptors,
+                                        imageUrl: imageUrl,
+                                        signatureImageUrl: signatureImageUrl
+                                    });
+                                    console.log("User data updated.");
+                                    isUpdating = false;
+                                    userToUpdate = null;
+                                } else {
+                                    await room.collection('user').create({
+                                        name: `${firstName} ${lastName}`,
+                                        descriptors: descriptors,
+                                        imageUrl: imageUrl,
+                                        signatureImageUrl: signatureImageUrl
+                                    });
+                                    console.log("User data saved.");
+                                }
+                            } catch (error) {
+                                console.error("Error saving user data:", error);
+                                statusDiv.style.color = 'red';
+                                statusDiv.textContent = "Error saving user data: " + error.message;
+                            }
+                        } catch (error) {
+                            console.error("Error uploading image:", error);
+                            statusDiv.style.color = 'red';
+                            statusDiv.textContent = "Error uploading image: " + error.message;
+                        }
+
+                        stopVideo();
+                        statusDiv.style.color = "green";
+                        statusDiv.textContent = "Registration completed and camera turned off.";
+
+                        firstNameInput.value = '';
+                        lastNameInput.value = '';
+                        startCaptureButton.classList.add('hidden');
+                        cancelRegistrationButton.classList.add('hidden');
+
+                        turnOnCameraButton.classList.remove('hidden');
+                    }, 'image/png');
+                } catch (error) {
+                    console.error("Error in saveUserData:", error);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Error in saving user data: " + error.message;
+                }
+            }
+
+            scanUserButton.addEventListener("click", () => {
+                if (!modelsLoaded) {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Models are not loaded yet. Please wait.";
+                    return;
+                }
+
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then((stream) => {
+                        video.srcObject = stream;
+                        video.style.display = "block";
+                        canvas.style.display = "block";
+                        isVideoReady = false;
+                        isScanning = true;
+                        scanUser();
+                    })
+                    .catch((err) => {
+                        console.error("Error accessing webcam:", err);
+                        statusDiv.style.color = 'red';
+                        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                            statusDiv.textContent = "Access to the camera was denied. Please allow camera access.";
+                        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                            statusDiv.textContent = "No camera devices found. Please ensure a camera is connected.";
+                        } else if (err.name === 'SecurityError') {
+                            statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
+                        } else {
+                            statusDiv.textContent = "Error accessing the webcam: " + err.message;
+                        }
+                        scanUserButton.classList.remove('hidden');
+                        video.style.display = "none";
+                        canvas.style.display = "none";
+                        isScanning = false;
+                    });
+            });
+
+            async function scanUser() {
+                statusDiv.textContent = "Scanning for user...";
+                signatureDisplayDiv.innerHTML = '';
+                const users = await room.collection('user').getList();
+                const labeledDescriptors = users.map(user => {
+                    if (user.descriptors && Array.isArray(user.descriptors) && user.descriptors.length > 0) {
+                        const descriptors = user.descriptors.map(desc => new Float32Array(desc));
+                        return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
+                    } else {
+                        console.warn(`User ${user.name} has no valid descriptors.`);
+                        return null;
+                    }
+                }).filter(item => item !== null);
+
+                if (labeledDescriptors.length === 0) {
+                    statusDiv.textContent = "No registered users with valid descriptors.";
+                    isScanning = false;
+                    stopVideo();
+                    turnOnCameraButton.classList.remove('hidden');
+                    return;
+                }
+
+                const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.7);
+
+                const interval = setInterval(async () => {
+                    if (!isScanning) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    if (!isVideoReady || video.videoWidth === 0 || video.videoHeight === 0) {
+                        return;
+                    }
+                    const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                    canvas.width = displaySize.width;
+                    canvas.height = displaySize.height;
+                    faceapi.matchDimensions(canvas, displaySize);
+
+                    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+
+                    if (detections.length > 0) {
+                        const results = resizedDetections.map(d => faceMatcher.findBestMatch(d.descriptor));
+                        results.forEach((bestMatch, i) => {
+                            const box = resizedDetections[i].detection.box;
+                            const drawBox = new faceapi.draw.DrawBox(box, { label: bestMatch.toString() });
+                            drawBox.draw(canvas);
+                            if (bestMatch.label !== 'unknown') {
+                                const matchedUser = users.find(user => user.name === bestMatch.label);
+                                if (matchedUser && matchedUser.signatureImageUrl) {
+                                    const signatureImg = document.createElement('img');
+                                    signatureImg.src = matchedUser.signatureImageUrl;
+                                    signatureImg.alt = `${matchedUser.name}'s Signature`;
+                                    signatureImg.style.maxWidth = '100%';
+                                    signatureDisplayDiv.innerHTML = '';
+                                    signatureDisplayDiv.appendChild(signatureImg);
+                                    statusDiv.style.color = 'green';
+                                    statusDiv.textContent = `Hello, ${matchedUser.name}!`;
+                                } else {
+                                    statusDiv.style.color = 'green';
+                                    statusDiv.textContent = `Hello, ${bestMatch.label}! (No signature available)`;
+                                }
+                                isScanning = false;
+                                stopVideo();
+                                clearInterval(interval);
+                                turnOnCameraButton.classList.remove('hidden');
+                            } else {
+                                statusDiv.style.color = 'red';
+                                statusDiv.textContent = `Face not recognized.`;
+                            }
+                        });
+                    }
+                }, 1000);
+            }
+
+            async function captureAndProcess() {
+                const context = canvas.getContext("2d");
+                if (!context) {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Cannot get canvas context";
+                    return null;
+                }
+                if (!isVideoReady || video.videoWidth === 0 || video.videoHeight === 0) {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Video not ready. Please try again.";
+                    return null;
+                }
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+                return detection;
+            }
+
+            function stopVideo() {
+                if (video.srcObject) {
+                    let stream = video.srcObject;
+                    let tracks = stream.getTracks();
+                    tracks.forEach(track => track.stop());
+                    video.srcObject = null;
+                }
+                video.style.display = "none";
+                canvas.style.display = "none";
+                isVideoReady = false;
+                startCaptureButton.classList.add('hidden');
+                cancelRegistrationButton.classList.add('hidden');
+            }
+
+            function renderUserList(users) {
+                const userListDiv = document.getElementById("userList");
+                userListDiv.innerHTML = "<h2>Registered Users:</h2>";
+                if (users.length === 0) {
+                    userListDiv.innerHTML += "<p>No users registered yet.</p>";
+                } else {
+                    const ul = document.createElement("ul");
+                    users.forEach(user => {
+                        const li = document.createElement("li");
+
+                        const userInfoDiv = document.createElement("div");
+                        userInfoDiv.style.display = "flex";
+                        userInfoDiv.style.alignItems = "center";
+
+                        const img = document.createElement("img");
+                        img.src = user.imageUrl;
+                        img.alt = user.name;
+                        img.classList.add('profile-pic');
+                        userInfoDiv.appendChild(img);
+
+                        const nameSpan = document.createElement("span");
+                        nameSpan.textContent = user.name;
+                        nameSpan.style.marginRight = "15px";
+                        userInfoDiv.appendChild(nameSpan);
+
+                        if (user.signatureImageUrl) {
+                            const signatureImg = document.createElement("img");
+                            signatureImg.src = user.signatureImageUrl;
+                            signatureImg.alt = `${user.name}'s Signature`;
+                            signatureImg.classList.add('signature-pic');
+                            userInfoDiv.appendChild(signatureImg);
+                        }
+
+                        const buttonsDiv = document.createElement("div");
+                        const canEdit = user.username === room.party.client.username;
+
+                        if (canEdit) {
+                            const updateButton = document.createElement("button");
+                            updateButton.textContent = "Update";
+                            updateButton.classList.add('update');
+                            updateButton.addEventListener("click", () => {
+                                updateUser(user);
+                            });
+                            buttonsDiv.appendChild(updateButton);
+
+                            const deleteButton = document.createElement("button");
+                            deleteButton.textContent = "Delete";
+                            deleteButton.addEventListener("click", () => {
+                                deleteUser(user.id);
+                            });
+                            buttonsDiv.appendChild(deleteButton);
+                        }
+
+                        userInfoDiv.appendChild(buttonsDiv);
+                        li.appendChild(userInfoDiv);
+                        ul.appendChild(li);
+                    });
+                    userListDiv.appendChild(ul);
+                }
+            }
+
+            async function deleteUser(userId) {
+                showDeleteModal(userId);
+            }
+
+            function showDeleteModal(userId) {
+                userIdToDelete = userId;
+                deleteModal.style.display = "block";
+            }
+
+            confirmDeleteBtn.onclick = async function() {
+                deleteModal.style.display = "none";
+                if (userIdToDelete) {
+                    try {
+                        await room.collection('user').delete(userIdToDelete);
+                        console.log("User deleted");
+                    } catch (error) {
+                        console.error("Error deleting user:", error);
+                        statusDiv.style.color = 'red';
+                        statusDiv.textContent = "Error deleting user: " + error.message;
+                    }
+                    userIdToDelete = null;
+                }
+            }
+
+            cancelDeleteBtn.onclick = function() {
+                deleteModal.style.display = "none";
+                userIdToDelete = null;
+            }
+
+            window.onclick = function(event) {
+                if (event.target == deleteModal) {
+                    deleteModal.style.display = "none";
+                    userIdToDelete = null;
+                }
+            }
+
+            function updateUser(user) {
+                isUpdating = true;
+                userToUpdate = user;
+                firstNameInput.value = user.name.split(' ')[0];
+                lastNameInput.value = user.name.split(' ').slice(1).join(' ');
+                statusDiv.textContent = "Update the details and capture new images.";
+                window.scrollTo(0, 0);
+
+                startCaptureButton.classList.remove('hidden');
+                cancelRegistrationButton.classList.remove('hidden');
+                scanUserButton.classList.remove('hidden');
+
+                turnOnCameraButton.classList.remove('hidden');
+
+                turnOnCamera();
+
+                nameErrorDiv.textContent = "";
+            }
+
+            function createSignatureImage(signatureText) {
+                return new Promise((resolve, reject) => {
+                    const fonts = ["Lucida Handwriting", "Alex Brush", "Edwardian Script ITC", "Great Vibes", "Caveat"];
+                    const randomFont = fonts[Math.floor(Math.random() * fonts.length)];
+                    document.fonts.load('100px "' + randomFont + '"').then(() => {
+                        const sigCanvas = document.createElement('canvas');
+                        sigCanvas.width = 800;
+                        sigCanvas.height = 200;
+                        const ctx = sigCanvas.getContext('2d');
+
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
+
+                        ctx.fillStyle = 'black';
+                        ctx.font = '100px "' + randomFont + '", cursive';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(signatureText, sigCanvas.width / 2, sigCanvas.height / 2);
+
+                        sigCanvas.toBlob(blob => {
+                            if (blob) {
+                                resolve(blob);
+                            } else {
+                                reject('Failed to create signature image blob.');
+                            }
+                        }, 'image/png');
+                    }).catch(error => {
+                        console.error('Error loading font:', error);
+                        reject('Font failed to load.');
+                    });
+                });
+            }
+
+            room.collection('user').subscribe(function(users) {
+                renderUserList(users);
+            });
+        });
+    </script>
+</body>
+</html>

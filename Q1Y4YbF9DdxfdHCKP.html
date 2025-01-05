@@ -339,6 +339,7 @@
                     .then((stream) => {
                         video.srcObject = stream;
                         video.style.display = "block";
+                        canvas.style.display = "none";
                         startCaptureButton.classList.remove('hidden');
                         startCaptureButton.disabled = false;
                         cancelRegistrationButton.classList.remove('hidden');
@@ -355,7 +356,7 @@
                         } else if (err.name === 'SecurityError') {
                             statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
                         } else {
-                            statusDiv.textContent = "Error accessing the webcam: " + err.message;
+                            statusDiv.textContent = "Error accessing the webcam: " + err.message + ". Please ensure that your camera is connected and you have granted permission.";
                         }
                         turnOnCameraButton.classList.remove('hidden');
                         startCaptureButton.classList.add('hidden');
@@ -454,10 +455,11 @@
 
                     const user = {
                         id: userToUpdate && isUpdating ? userToUpdate.id : generateUniqueId(),
-                        name: `${firstName} ${lastName}`,
-                        descriptors: descriptors,
-                        imageDataUrl: faceImageDataUrl,
-                        signatureImageDataUrl: signatureImageDataUrl
+                        firstName: firstName,
+                        lastName: lastName,
+                        biometrics: descriptors,
+                        profilePicture: faceImageDataUrl,
+                        signature: signatureImageDataUrl
                     };
 
                     if (isUpdating && userToUpdate) {
@@ -518,7 +520,7 @@
                         } else if (err.name === 'SecurityError') {
                             statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
                         } else {
-                            statusDiv.textContent = "Error accessing the webcam: " + err.message;
+                            statusDiv.textContent = "Error accessing the webcam: " + err.message + ". Please ensure that your camera is connected and you have granted permission.";
                         }
                         scanUserButton.classList.remove('hidden');
                         video.style.display = "none";
@@ -532,11 +534,11 @@
                 signatureDisplayDiv.innerHTML = '';
                 const users = await getUsers();
                 const labeledDescriptors = users.map(user => {
-                    if (user.descriptors && Array.isArray(user.descriptors) && user.descriptors.length > 0) {
-                        const descriptors = user.descriptors.map(desc => new Float32Array(desc));
-                        return new faceapi.LabeledFaceDescriptors(user.name, descriptors);
+                    if (user.biometrics && Array.isArray(user.biometrics) && user.biometrics.length > 0) {
+                        const descriptors = user.biometrics.map(desc => new Float32Array(desc));
+                        return new faceapi.LabeledFaceDescriptors(`${user.firstName} ${user.lastName}`, descriptors);
                     } else {
-                        console.warn(`User ${user.name} has no valid descriptors.`);
+                        console.warn(`User ${user.firstName} ${user.lastName} has no valid descriptors.`);
                         return null;
                     }
                 }).filter(item => item !== null);
@@ -576,16 +578,17 @@
                             const drawBox = new faceapi.draw.DrawBox(box, { label: bestMatch.toString() });
                             drawBox.draw(canvas);
                             if (bestMatch.label !== 'unknown') {
-                                const matchedUser = users.find(user => user.name === bestMatch.label);
-                                if (matchedUser && matchedUser.signatureImageDataUrl) {
+                                const [matchedFirstName, matchedLastName] = bestMatch.label.split(' ');
+                                const matchedUser = users.find(user => user.firstName === matchedFirstName && user.lastName === matchedLastName);
+                                if (matchedUser && matchedUser.signature) {
                                     const signatureImg = document.createElement('img');
-                                    signatureImg.src = matchedUser.signatureImageDataUrl;
-                                    signatureImg.alt = `${matchedUser.name}'s Signature`;
+                                    signatureImg.src = matchedUser.signature;
+                                    signatureImg.alt = `${matchedUser.firstName} ${matchedUser.lastName}'s Signature`;
                                     signatureImg.style.maxWidth = '100%';
                                     signatureDisplayDiv.innerHTML = '';
                                     signatureDisplayDiv.appendChild(signatureImg);
                                     statusDiv.style.color = 'green';
-                                    statusDiv.textContent = `Hello, ${matchedUser.name}!`;
+                                    statusDiv.textContent = `Hello, ${matchedUser.firstName} ${matchedUser.lastName}!`;
                                 } else {
                                     statusDiv.style.color = 'green';
                                     statusDiv.textContent = `Hello, ${bestMatch.label}! (No signature available)`;
@@ -652,20 +655,20 @@
                         userInfoDiv.style.alignItems = "center";
 
                         const img = document.createElement("img");
-                        img.src = user.imageDataUrl;
-                        img.alt = user.name;
+                        img.src = user.profilePicture;
+                        img.alt = `${user.firstName} ${user.lastName}`;
                         img.classList.add('profile-pic');
                         userInfoDiv.appendChild(img);
 
                         const nameSpan = document.createElement("span");
-                        nameSpan.textContent = user.name;
+                        nameSpan.textContent = `${user.firstName} ${user.lastName}`;
                         nameSpan.style.marginRight = "15px";
                         userInfoDiv.appendChild(nameSpan);
 
-                        if (user.signatureImageDataUrl) {
+                        if (user.signature) {
                             const signatureImg = document.createElement("img");
-                            signatureImg.src = user.signatureImageDataUrl;
-                            signatureImg.alt = `${user.name}'s Signature`;
+                            signatureImg.src = user.signature;
+                            signatureImg.alt = `${user.firstName} ${user.lastName}'s Signature`;
                             signatureImg.classList.add('signature-pic');
                             userInfoDiv.appendChild(signatureImg);
                         }
@@ -723,8 +726,8 @@
             function updateUserStart(user) {
                 isUpdating = true;
                 userToUpdate = user;
-                firstNameInput.value = user.name.split(' ')[0];
-                lastNameInput.value = user.name.split(' ').slice(1).join(' ');
+                firstNameInput.value = user.firstName;
+                lastNameInput.value = user.lastName;
                 statusDiv.textContent = "Update the details and capture new images.";
                 window.scrollTo(0, 0);
 
@@ -767,7 +770,7 @@
             }
 
             function saveUser(user) {
-                fetch(serverUrl + '/users', {
+                fetch(serverUrl + '/api/registerUser', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -787,8 +790,8 @@
             }
 
             function updateUser(userId, updatedUser) {
-                fetch(`${serverUrl}/users/${userId}`, {
-                    method: 'PUT',
+                fetch(`${serverUrl}/api/registerUser`, {
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
@@ -807,7 +810,7 @@
             }
 
             function deleteUser(userId) {
-                fetch(`${serverUrl}/users/${userId}`, {
+                fetch(`${serverUrl}/api/users/${userId}`, {
                     method: 'DELETE'
                 })
                 .then(response => response.json())
@@ -824,7 +827,7 @@
 
             async function getUsers() {
                 try {
-                    const response = await fetch(serverUrl + '/users');
+                    const response = await fetch(serverUrl + '/api/users');
                     const users = await response.json();
                     return users;
                 } catch (error) {

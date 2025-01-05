@@ -271,13 +271,10 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://mgllanos24.github.io/jobshop/server.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", async function() {
-            const serverUrl = 'https://mgllanos24.github.io/jobshop';
-
             let userIdToDelete = null;
 
             const video = document.getElementById("video");
@@ -306,6 +303,9 @@
 
             let captureInterval = null;
 
+            // Define the server URL
+            var serverUrl = 'http://localhost:3000';
+
             // Load models
             Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models'),
@@ -325,6 +325,11 @@
             });
 
             function turnOnCamera() {
+                if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
+                    return;
+                }
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     statusDiv.style.color = 'red';
                     statusDiv.textContent = "Your browser does not support getUserMedia API.";
@@ -455,22 +460,14 @@
                         signatureImageDataUrl: signatureImageDataUrl
                     };
 
-                    let endpoint = isUpdating && userToUpdate ? '/api/updateUser' : '/api/registerUser';
-                    const response = await fetch(serverUrl + endpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(user)
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok) {
-                        console.log("User data saved to the backend.");
-                        renderUserList();
+                    if (isUpdating && userToUpdate) {
+                        updateUser(user.id, user);
+                        console.log("User data updated.");
+                        isUpdating = false;
+                        userToUpdate = null;
                     } else {
-                        throw new Error(result.message || 'Failed to save user data.');
+                        saveUser(user);
+                        console.log("User data saved.");
                     }
 
                     stopVideo();
@@ -497,6 +494,11 @@
                     return;
                 }
 
+                if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
+                    return;
+                }
                 navigator.mediaDevices.getUserMedia({ video: true })
                     .then((stream) => {
                         video.srcObject = stream;
@@ -635,8 +637,7 @@
                 cancelRegistrationButton.classList.add('hidden');
             }
 
-            async function renderUserList() {
-                const users = await getUsers();
+            function renderUserList(users) {
                 const userListDiv = document.getElementById("userList");
                 userListDiv.innerHTML = "<h2>Registered Users:</h2>";
                 if (users.length === 0) {
@@ -693,26 +694,6 @@
                 }
             }
 
-            async function deleteUser(userId) {
-                try {
-                    const response = await fetch(`${serverUrl}/api/user/${userId}`, {
-                        method: 'DELETE'
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(result.message || 'Failed to delete user.');
-                    }
-
-                    console.log('User deleted');
-                    renderUserList();
-                } catch (error) {
-                    console.error('Error deleting user:', error);
-                    statusDiv.style.color = 'red';
-                    statusDiv.textContent = 'Error deleting user: ' + error.message;
-                }
-            }
-
             function showDeleteModal(userId) {
                 userIdToDelete = userId;
                 deleteModal.style.display = "block";
@@ -722,6 +703,7 @@
                 deleteModal.style.display = "none";
                 if (userIdToDelete) {
                     deleteUser(userIdToDelete);
+                    console.log("User deleted");
                     userIdToDelete = null;
                 }
             }
@@ -784,54 +766,71 @@
                 });
             }
 
-            async function saveUser(user) {
-                const response = await fetch(`${serverUrl}/api/registerUser`, {
+            function saveUser(user) {
+                fetch(serverUrl + '/users', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(user)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('User saved:', data);
+                    getUsers().then(users => renderUserList(users));
+                })
+                .catch(error => {
+                    console.error('Error saving user:', error);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = 'Error saving user: ' + error.message;
                 });
-
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.message || 'Failed to save user data.');
-                }
-
-                renderUserList();
             }
 
-            async function updateUser(userId, updatedUser) {
-                const response = await fetch(`${serverUrl}/api/updateUser`, {
-                    method: 'POST',
+            function updateUser(userId, updatedUser) {
+                fetch(`${serverUrl}/users/${userId}`, {
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(updatedUser)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('User updated:', data);
+                    getUsers().then(users => renderUserList(users));
+                })
+                .catch(error => {
+                    console.error('Error updating user:', error);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = 'Error updating user: ' + error.message;
                 });
+            }
 
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.message || 'Failed to update user data.');
-                }
-
-                renderUserList();
+            function deleteUser(userId) {
+                fetch(`${serverUrl}/users/${userId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('User deleted:', data);
+                    getUsers().then(users => renderUserList(users));
+                })
+                .catch(error => {
+                    console.error('Error deleting user:', error);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = 'Error deleting user: ' + error.message;
+                });
             }
 
             async function getUsers() {
                 try {
-                    const response = await fetch(`${serverUrl}/api/users`);
-                    const data = await response.json();
-                    if (response.ok) {
-                        return data.users || [];
-                    } else {
-                        console.error('Error fetching users:', data.message);
-                        return [];
-                    }
+                    const response = await fetch(serverUrl + '/users');
+                    const users = await response.json();
+                    return users;
                 } catch (error) {
                     console.error('Error fetching users:', error);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = 'Error fetching users: ' + error.message;
                     return [];
                 }
             }
@@ -840,7 +839,8 @@
                 return '_' + Math.random().toString(36).substr(2, 9);
             }
 
-            renderUserList();
+            // Initial rendering of user list
+            getUsers().then(users => renderUserList(users));
 
         });
     </script>

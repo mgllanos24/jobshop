@@ -457,14 +457,22 @@
                         signatureImageDataUrl: signatureImageDataUrl
                     };
 
-                    if (isUpdating && userToUpdate) {
-                        updateUser(user.id, user);
-                        console.log("User data updated.");
-                        isUpdating = false;
-                        userToUpdate = null;
+                    let endpoint = isUpdating && userToUpdate ? '/api/updateUser' : '/api/registerUser';
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(user)
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        console.log("User data saved to the backend.");
+                        renderUserList();
                     } else {
-                        saveUser(user);
-                        console.log("User data saved.");
+                        throw new Error(result.message || 'Failed to save user data.');
                     }
 
                     stopVideo();
@@ -527,7 +535,7 @@
             async function scanUser() {
                 statusDiv.textContent = "Scanning for user...";
                 signatureDisplayDiv.innerHTML = '';
-                const users = getUsers();
+                const users = await getUsers();
                 const labeledDescriptors = users.map(user => {
                     if (user.descriptors && Array.isArray(user.descriptors) && user.descriptors.length > 0) {
                         const descriptors = user.descriptors.map(desc => new Float32Array(desc));
@@ -634,7 +642,8 @@
                 cancelRegistrationButton.classList.add('hidden');
             }
 
-            function renderUserList(users) {
+            async function renderUserList() {
+                const users = await getUsers();
                 const userListDiv = document.getElementById("userList");
                 userListDiv.innerHTML = "<h2>Registered Users:</h2>";
                 if (users.length === 0) {
@@ -691,11 +700,24 @@
                 }
             }
 
-            function deleteUser(userId) {
-                let users = getUsers();
-                users = users.filter(user => user.id !== userId);
-                localStorage.setItem('users', JSON.stringify(users));
-                renderUserList(users);
+            async function deleteUser(userId) {
+                try {
+                    const response = await fetch(`/api/user/${userId}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Failed to delete user.');
+                    }
+
+                    console.log('User deleted');
+                    renderUserList();
+                } catch (error) {
+                    console.error('Error deleting user:', error);
+                    statusDiv.style.color = 'red';
+                    statusDiv.textContent = 'Error deleting user: ' + error.message;
+                }
             }
 
             function showDeleteModal(userId) {
@@ -707,7 +729,6 @@
                 deleteModal.style.display = "none";
                 if (userIdToDelete) {
                     deleteUser(userIdToDelete);
-                    console.log("User deleted");
                     userIdToDelete = null;
                 }
             }
@@ -770,29 +791,63 @@
                 });
             }
 
-            function saveUser(user) {
-                let users = getUsers();
-                users.push(user);
-                localStorage.setItem('users', JSON.stringify(users));
-                renderUserList(users);
+            async function saveUser(user) {
+                const response = await fetch('/api/registerUser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(user)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Failed to save user data.');
+                }
+
+                renderUserList();
             }
 
-            function updateUser(userId, updatedUser) {
-                let users = getUsers();
-                users = users.map(user => user.id === userId ? updatedUser : user);
-                localStorage.setItem('users', JSON.stringify(users));
-                renderUserList(users);
+            async function updateUser(userId, updatedUser) {
+                const response = await fetch('/api/updateUser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedUser)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Failed to update user data.');
+                }
+
+                renderUserList();
             }
 
-            function getUsers() {
-                return JSON.parse(localStorage.getItem('users')) || [];
+            async function getUsers() {
+                try {
+                    const response = await fetch('/api/users');
+                    const data = await response.json();
+                    if (response.ok) {
+                        return data.users || [];
+                    } else {
+                        console.error('Error fetching users:', data.message);
+                        return [];
+                    }
+                } catch (error) {
+                    console.error('Error fetching users:', error);
+                    return [];
+                }
             }
 
             function generateUniqueId() {
                 return '_' + Math.random().toString(36).substr(2, 9);
             }
 
-            renderUserList(getUsers());
+            renderUserList();
 
         });
     </script>

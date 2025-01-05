@@ -271,10 +271,13 @@
     </div>
 
     <!-- Scripts -->
+    <script src="https://mgllanos24.github.io/jobshop/server.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", async function() {
+            const serverUrl = 'https://mgllanos24.github.io/jobshop';
+
             let userIdToDelete = null;
 
             const video = document.getElementById("video");
@@ -322,11 +325,6 @@
             });
 
             function turnOnCamera() {
-                if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
-                    statusDiv.style.color = 'red';
-                    statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
-                    return;
-                }
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     statusDiv.style.color = 'red';
                     statusDiv.textContent = "Your browser does not support getUserMedia API.";
@@ -458,7 +456,7 @@
                     };
 
                     let endpoint = isUpdating && userToUpdate ? '/api/updateUser' : '/api/registerUser';
-                    const response = await fetch(endpoint, {
+                    const response = await fetch(serverUrl + endpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -499,11 +497,6 @@
                     return;
                 }
 
-                if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
-                    statusDiv.style.color = 'red';
-                    statusDiv.textContent = "Camera access requires HTTPS or localhost. Please serve this page over HTTPS or use localhost.";
-                    return;
-                }
                 navigator.mediaDevices.getUserMedia({ video: true })
                     .then((stream) => {
                         video.srcObject = stream;
@@ -702,7 +695,7 @@
 
             async function deleteUser(userId) {
                 try {
-                    const response = await fetch(`/api/user/${userId}`, {
+                    const response = await fetch(`${serverUrl}/api/user/${userId}`, {
                         method: 'DELETE'
                     });
                     const result = await response.json();
@@ -792,7 +785,7 @@
             }
 
             async function saveUser(user) {
-                const response = await fetch('/api/registerUser', {
+                const response = await fetch(`${serverUrl}/api/registerUser`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -810,7 +803,7 @@
             }
 
             async function updateUser(userId, updatedUser) {
-                const response = await fetch('/api/updateUser', {
+                const response = await fetch(`${serverUrl}/api/updateUser`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -829,7 +822,7 @@
 
             async function getUsers() {
                 try {
-                    const response = await fetch('/api/users');
+                    const response = await fetch(`${serverUrl}/api/users`);
                     const data = await response.json();
                     if (response.ok) {
                         return data.users || [];
